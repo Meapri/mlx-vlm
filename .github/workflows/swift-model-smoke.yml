@@ -38,4 +38,5 @@ jobs:
           MAX_TOKENS: ${{ inputs.max_tokens }}
           TEMPERATURE: "0"
           TOP_P: "1"
+          MLXVLM_SWIFT_DEVICE: cpu
         run: ./scripts/run-model-smoke.sh

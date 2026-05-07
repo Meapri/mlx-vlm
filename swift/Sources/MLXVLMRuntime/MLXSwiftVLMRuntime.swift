@@ -1,5 +1,6 @@
 import Foundation
 import MLXVLMCore
+import MLX
 import MLXVLM
 import MLXLMCommon
 import MLXHuggingFace
@@ -15,9 +16,17 @@ import Tokenizers
 public actor MLXSwiftVLMRuntime: VLMRuntime {
     private var containers: [String: ModelContainer] = [:]
 
-    public init() {}
+    public init() {
+        if Self.requestedDevice() == "cpu" {
+            Device.setDefault(device: .cpu)
+        }
+    }
 
     public func generate(_ request: RuntimeGenerateRequest) async throws -> RuntimeGenerateChunk {
+        try await generateOnConfiguredDevice(request)
+    }
+
+    private func generateOnConfiguredDevice(_ request: RuntimeGenerateRequest) async throws -> RuntimeGenerateChunk {
         let (images, temporaryFiles) = try Self.decodeImages(request.base64Images)
         defer { Self.removeTemporaryFiles(temporaryFiles) }
         let container = try await container(for: request.modelSource)
@@ -44,29 +53,7 @@ public actor MLXSwiftVLMRuntime: VLMRuntime {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    let (images, temporaryFiles) = try Self.decodeImages(request.base64Images)
-                    defer { Self.removeTemporaryFiles(temporaryFiles) }
-                    let container = try await self.container(for: request.modelSource)
-
-                    let session = ChatSession(
-                        container,
-                        generateParameters: MLXLMCommon.GenerateParameters(
-                            maxTokens: request.maxTokens,
-                            temperature: Float(request.temperature),
-                            topP: Float(request.topP)
-                        )
-                    )
-
-                    for try await chunk in session.streamResponse(
-                        to: request.prompt,
-                        images: images,
-                        videos: []
-                    ) {
-                        if Task.isCancelled { break }
-                        continuation.yield(RuntimeGenerateChunk(text: chunk, done: false))
-                    }
-                    continuation.yield(RuntimeGenerateChunk(text: "", done: true, finishReason: "stop"))
-                    continuation.finish()
+                    try await self.streamOnConfiguredDevice(request, continuation: continuation)
                 } catch {
                     continuation.finish(throwing: error)
                 }
@@ -76,6 +63,35 @@ public actor MLXSwiftVLMRuntime: VLMRuntime {
                 task.cancel()
             }
         }
+    }
+
+    private func streamOnConfiguredDevice(
+        _ request: RuntimeGenerateRequest,
+        continuation: AsyncThrowingStream<RuntimeGenerateChunk, Error>.Continuation
+    ) async throws {
+        let (images, temporaryFiles) = try Self.decodeImages(request.base64Images)
+        defer { Self.removeTemporaryFiles(temporaryFiles) }
+        let container = try await self.container(for: request.modelSource)
+
+        let session = ChatSession(
+            container,
+            generateParameters: MLXLMCommon.GenerateParameters(
+                maxTokens: request.maxTokens,
+                temperature: Float(request.temperature),
+                topP: Float(request.topP)
+            )
+        )
+
+        for try await chunk in session.streamResponse(
+            to: request.prompt,
+            images: images,
+            videos: []
+        ) {
+            if Task.isCancelled { break }
+            continuation.yield(RuntimeGenerateChunk(text: chunk, done: false))
+        }
+        continuation.yield(RuntimeGenerateChunk(text: "", done: true, finishReason: "stop"))
+        continuation.finish()
     }
 
     private func container(for source: String) async throws -> ModelContainer {
@@ -99,6 +115,10 @@ public actor MLXSwiftVLMRuntime: VLMRuntime {
 
         containers[source] = container
         return container
+    }
+
+    private nonisolated static func requestedDevice() -> String? {
+        ProcessInfo.processInfo.environment["MLXVLM_SWIFT_DEVICE"]?.lowercased()
     }
 
     private nonisolated static func isLocalDirectory(_ source: String) -> Bool {
