@@ -16,7 +16,9 @@ let package = Package(
         .executable(name: "mlx-vlm-swift", targets: ["mlx-vlm-swift"])
     ],
     dependencies: [
-        .package(url: "https://github.com/Meapri/mlx-swift-lm.git", branch: "fix/ci-context-sendable")
+        .package(url: "https://github.com/Meapri/mlx-swift-lm.git", branch: "fix/ci-context-sendable"),
+        .package(url: "https://github.com/huggingface/swift-transformers.git", branch: "main"),
+        .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.8.1")
     ],
     targets: [
         .target(name: "MLXVLMCore"),
@@ -29,7 +31,9 @@ let package = Package(
                 "MLXVLMCore",
                 .product(name: "MLXVLM", package: "mlx-swift-lm"),
                 .product(name: "MLXLMCommon", package: "mlx-swift-lm"),
-                .product(name: "MLXHuggingFace", package: "mlx-swift-lm")
+                .product(name: "MLXHuggingFace", package: "mlx-swift-lm"),
+                .product(name: "Tokenizers", package: "swift-transformers"),
+                .product(name: "HuggingFace", package: "swift-huggingface")
             ]
         ),
         .executableTarget(name: "mlx-vlm-swift", dependencies: ["MLXVLMCore", "MLXVLMCompat", "MLXVLMOllama", "MLXVLMServer"]),
