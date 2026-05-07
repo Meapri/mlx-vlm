@@ -94,4 +94,13 @@ final class OllamaRuntimeHandlerTests: XCTestCase {
         XCTAssertEqual(chunks.map(\.done), [false, false, true])
         XCTAssertEqual(chunks.last?.doneReason, "stop")
     }
+
+    func testKeepAliveDurationParsesOllamaDurations() {
+        XCTAssertEqual(OllamaRuntimeHandler.keepAliveDurationSeconds("0"), 0)
+        XCTAssertEqual(OllamaRuntimeHandler.keepAliveDurationSeconds("30s"), 30)
+        XCTAssertEqual(OllamaRuntimeHandler.keepAliveDurationSeconds("5m"), 300)
+        XCTAssertEqual(OllamaRuntimeHandler.keepAliveDurationSeconds("2h"), 7200)
+        XCTAssertEqual(OllamaRuntimeHandler.keepAliveDurationSeconds("1d"), 86400)
+        XCTAssertNil(OllamaRuntimeHandler.keepAliveDurationSeconds("forever"))
+    }
 }

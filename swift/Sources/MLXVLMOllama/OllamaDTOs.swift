@@ -155,14 +155,16 @@ public struct OllamaModelTag: Codable, Equatable, Sendable {
     public let size: Int
     public let digest: String
     public let details: OllamaModelDetails
+    public let expiresAt: String?
 
-    public init(name: String, model: String, modifiedAt: String, size: Int, digest: String, details: OllamaModelDetails) {
+    public init(name: String, model: String, modifiedAt: String, size: Int, digest: String, details: OllamaModelDetails, expiresAt: String? = nil) {
         self.name = name
         self.model = model
         self.modifiedAt = modifiedAt
         self.size = size
         self.digest = digest
         self.details = details
+        self.expiresAt = expiresAt
     }
 }
 

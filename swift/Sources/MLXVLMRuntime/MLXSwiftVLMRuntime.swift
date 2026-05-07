@@ -13,8 +13,15 @@ import Tokenizers
 /// can be either:
 /// - a local model directory containing `config.json`, tokenizer files, and `*.safetensors`
 /// - a HuggingFace model id such as `mlx-community/Qwen2.5-VL-3B-Instruct-4bit`
-public actor MLXSwiftVLMRuntime: VLMRuntime, RuntimeStateReporting, RuntimeModelManagement {
-    private var containers: [String: ModelContainer] = [:]
+public actor MLXSwiftVLMRuntime: VLMRuntime, RuntimeModelStateReporting, RuntimeModelExpirationManaging {
+    private struct LoadedContainer {
+        var container: ModelContainer
+        var loadedAt: Date
+        var lastUsedAt: Date
+        var expiresAt: Date?
+    }
+
+    private var containers: [String: LoadedContainer] = [:]
 
     public init() {
         if Self.requestedDevice() == "cpu" {
@@ -95,7 +102,26 @@ public actor MLXSwiftVLMRuntime: VLMRuntime, RuntimeStateReporting, RuntimeModel
     }
 
     public func loadedModelSources() async -> [String] {
-        containers.keys.sorted()
+        pruneExpiredModels()
+        return containers.keys.sorted()
+    }
+
+    public func loadedModels() async -> [RuntimeLoadedModel] {
+        pruneExpiredModels()
+        return containers
+            .map { source, loaded in
+                RuntimeLoadedModel(
+                    source: source,
+                    loadedAt: Self.iso8601String(from: loaded.loadedAt),
+                    lastUsedAt: Self.iso8601String(from: loaded.lastUsedAt),
+                    expiresAt: loaded.expiresAt.map(Self.iso8601String(from:)),
+                    size: 0,
+                    family: Self.modelFamily(from: source),
+                    parameterSize: Self.parameterSize(from: source),
+                    quantizationLevel: Self.quantizationLevel(from: source)
+                )
+            }
+            .sorted { $0.source < $1.source }
     }
 
     @discardableResult
@@ -103,9 +129,19 @@ public actor MLXSwiftVLMRuntime: VLMRuntime, RuntimeStateReporting, RuntimeModel
         containers.removeValue(forKey: source) != nil
     }
 
+    public func setModelExpiration(source: String, expiresAt: Date?) async {
+        pruneExpiredModels()
+        guard var loaded = containers[source] else { return }
+        loaded.expiresAt = expiresAt
+        containers[source] = loaded
+    }
+
     private func container(for source: String) async throws -> ModelContainer {
-        if let container = containers[source] {
-            return container
+        pruneExpiredModels()
+        if var loaded = containers[source] {
+            loaded.lastUsedAt = Date()
+            containers[source] = loaded
+            return loaded.container
         }
 
         let container: ModelContainer
@@ -122,12 +158,50 @@ public actor MLXSwiftVLMRuntime: VLMRuntime, RuntimeStateReporting, RuntimeModel
             )
         }
 
-        containers[source] = container
+        containers[source] = LoadedContainer(container: container, loadedAt: Date(), lastUsedAt: Date(), expiresAt: nil)
         return container
+    }
+
+    private func pruneExpiredModels(now: Date = Date()) {
+        containers = containers.filter { _, loaded in
+            guard let expiresAt = loaded.expiresAt else { return true }
+            return expiresAt > now
+        }
     }
 
     private nonisolated static func requestedDevice() -> String? {
         ProcessInfo.processInfo.environment["MLXVLM_SWIFT_DEVICE"]?.lowercased()
+    }
+
+    private nonisolated static func iso8601String(from date: Date) -> String {
+        ISO8601DateFormatter().string(from: date)
+    }
+
+    private nonisolated static func modelFamily(from source: String) -> String {
+        let lowercased = source.lowercased()
+        if lowercased.contains("qwen2.5") || lowercased.contains("qwen2_5") { return "qwen2_5_vl" }
+        if lowercased.contains("qwen2-vl") || lowercased.contains("qwen2_vl") { return "qwen2_vl" }
+        if lowercased.contains("smolvlm") { return "smolvlm" }
+        if lowercased.contains("fastvlm") { return "fastvlm" }
+        if lowercased.contains("gemma") { return "gemma" }
+        return "vlm"
+    }
+
+    private nonisolated static func parameterSize(from source: String) -> String {
+        let lowercased = source.lowercased()
+        if lowercased.contains("256m") { return "256M" }
+        if lowercased.contains("0.5b") { return "0.5B" }
+        if lowercased.contains("2b") { return "2B" }
+        if lowercased.contains("3b") { return "3B" }
+        if lowercased.contains("7b") { return "7B" }
+        return "unknown"
+    }
+
+    private nonisolated static func quantizationLevel(from source: String) -> String {
+        let lowercased = source.lowercased()
+        if lowercased.contains("4bit") || lowercased.contains("4-bit") { return "Q4" }
+        if lowercased.contains("8bit") || lowercased.contains("8-bit") { return "Q8" }
+        return "unknown"
     }
 
     private nonisolated static func isLocalDirectory(_ source: String) -> Bool {

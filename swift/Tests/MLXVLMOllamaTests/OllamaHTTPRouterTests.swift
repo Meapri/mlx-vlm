@@ -19,6 +19,33 @@ private struct EchoRuntime: VLMRuntime {
     }
 }
 
+private struct LoadedModelsRuntime: VLMRuntime, RuntimeModelStateReporting {
+    func generate(_ request: RuntimeGenerateRequest) async throws -> RuntimeGenerateChunk {
+        RuntimeGenerateChunk(text: "ok", done: true, finishReason: "stop")
+    }
+
+    func stream(_ request: RuntimeGenerateRequest) -> AsyncThrowingStream<RuntimeGenerateChunk, Error> {
+        AsyncThrowingStream { $0.finish() }
+    }
+
+    func loadedModelSources() async -> [String] {
+        ["mlx-community/Qwen2-VL-2B-Instruct-4bit"]
+    }
+
+    func loadedModels() async -> [RuntimeLoadedModel] {
+        [RuntimeLoadedModel(
+            source: "mlx-community/Qwen2-VL-2B-Instruct-4bit",
+            loadedAt: "2026-05-07T00:00:00Z",
+            lastUsedAt: "2026-05-07T00:01:00Z",
+            expiresAt: "2026-05-07T00:06:00Z",
+            size: 123,
+            family: "qwen2_vl",
+            parameterSize: "2B",
+            quantizationLevel: "Q4"
+        )]
+    }
+}
+
 final class OllamaHTTPRouterTests: XCTestCase {
     func testVersionRouteReturnsOllamaVersionJSON() async throws {
         let router = OllamaHTTPRouter(version: "test-version")
@@ -87,6 +114,23 @@ final class OllamaHTTPRouterTests: XCTestCase {
         let decoded = try JSONDecoder.ollama.decode(OllamaChatResponse.self, from: response.body)
         XCTAssertEqual(decoded.message.role, "assistant")
         XCTAssertEqual(decoded.message.content, "echo:local:user: Hi:0")
+    }
+
+    func testRunningModelsRouteUsesRuntimeMetadataWhenAvailable() async throws {
+        let handler = OllamaRuntimeHandler(runtime: LoadedModelsRuntime(), now: { "2026-05-07T00:00:00Z" })
+        let router = OllamaHTTPRouter(runtimeHandler: handler)
+
+        let response = try await router.handle(HTTPRequest(method: "GET", path: "/api/ps", headers: [:], body: Data()))
+
+        XCTAssertEqual(response.statusCode, 200)
+        let decoded = try JSONDecoder.ollama.decode(OllamaRunningModelsResponse.self, from: response.body)
+        XCTAssertEqual(decoded.models.first?.model, "mlx-community/Qwen2-VL-2B-Instruct-4bit")
+        XCTAssertEqual(decoded.models.first?.modifiedAt, "2026-05-07T00:01:00Z")
+        XCTAssertEqual(decoded.models.first?.expiresAt, "2026-05-07T00:06:00Z")
+        XCTAssertEqual(decoded.models.first?.size, 123)
+        XCTAssertEqual(decoded.models.first?.details.family, "qwen2_vl")
+        XCTAssertEqual(decoded.models.first?.details.parameterSize, "2B")
+        XCTAssertEqual(decoded.models.first?.details.quantizationLevel, "Q4")
     }
 
     func testShowRouteReturnsModelMetadataForAlias() async throws {

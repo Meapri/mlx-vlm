@@ -85,6 +85,7 @@ print(json.dumps({
     'prompt': os.environ.get('PROMPT', 'Describe this image in one short sentence.'),
     'images': [image],
     'stream': False,
+    'keep_alive': '5m',
     'options': {
         'num_predict': int(os.environ.get('MAX_TOKENS', '8')),
         'temperature': 0,
@@ -110,8 +111,14 @@ python3 - <<'PY'
 import json, os
 payload=json.load(open('/tmp/mlx-vlm-ollama-ps.json'))
 models=payload.get('models') or []
-assert any(m.get('model') == os.environ.get('MODEL') or m.get('name') == os.environ.get('MODEL') for m in models), payload
+match=next((m for m in models if m.get('model') == os.environ.get('MODEL') or m.get('name') == os.environ.get('MODEL')), None)
+assert match is not None, payload
+assert match.get('expires_at'), payload
+details=match.get('details') or {}
+assert details.get('family') in ('qwen2_vl', 'vlm'), payload
 print('\nollama_ps_models=', [m.get('model') for m in models])
+print('ollama_ps_expires_at=', match.get('expires_at'))
+print('ollama_ps_details=', details)
 PY
 
 curl -fsS "${BASE_URL}/mlx-vlm/status" | tee /tmp/mlx-vlm-status.json

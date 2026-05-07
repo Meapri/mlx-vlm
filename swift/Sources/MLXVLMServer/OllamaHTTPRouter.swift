@@ -171,15 +171,21 @@ public struct OllamaHTTPRouter: Sendable {
     }
 
     private func handleRunningModels() async throws -> HTTPResponse {
-        let loadedModels = await runtimeHandler.loadedModelSources()
-        let tags = loadedModels.map { source in
+        let loadedModels = await runtimeHandler.loadedModels()
+        let tags = loadedModels.map { model in
             OllamaModelTag(
-                name: source,
-                model: source,
-                modifiedAt: OllamaRuntimeHandler.iso8601Now(),
-                size: 0,
-                digest: source,
-                details: OllamaModelDetails(family: "vlm", families: ["vlm"])
+                name: model.source,
+                model: model.source,
+                modifiedAt: model.lastUsedAt,
+                size: model.size,
+                digest: model.source,
+                details: OllamaModelDetails(
+                    family: model.family,
+                    families: [model.family],
+                    parameterSize: model.parameterSize,
+                    quantizationLevel: model.quantizationLevel
+                ),
+                expiresAt: model.expiresAt
             )
         }
         return try HTTPResponse.json(OllamaRunningModelsResponse(models: tags), encoder: .ollama)

@@ -21,6 +21,7 @@ public struct OllamaRuntimeHandler: Sendable {
     public func generate(_ request: OllamaGenerateRequest) async throws -> OllamaGenerateResponse {
         let runtimeRequest = makeRuntimeRequest(from: request)
         let chunk = try await runtime.generate(runtimeRequest)
+        await applyKeepAlive(request.keepAlive, model: request.model)
         return OllamaGenerateResponse(
             model: request.model,
             createdAt: now(),
@@ -44,6 +45,7 @@ public struct OllamaRuntimeHandler: Sendable {
                             doneReason: chunk.finishReason
                         ))
                     }
+                    await applyKeepAlive(request.keepAlive, model: request.model)
                     continuation.finish()
                 } catch {
                     continuation.finish(throwing: error)
@@ -56,6 +58,7 @@ public struct OllamaRuntimeHandler: Sendable {
     public func chat(_ request: OllamaChatRequest) async throws -> OllamaChatResponse {
         let runtimeRequest = makeRuntimeRequest(from: request)
         let chunk = try await runtime.generate(runtimeRequest)
+        await applyKeepAlive(request.keepAlive, model: request.model)
         return OllamaChatResponse(
             model: request.model,
             createdAt: now(),
@@ -79,6 +82,7 @@ public struct OllamaRuntimeHandler: Sendable {
                             doneReason: chunk.finishReason
                         ))
                     }
+                    await applyKeepAlive(request.keepAlive, model: request.model)
                     continuation.finish()
                 } catch {
                     continuation.finish(throwing: error)
@@ -142,6 +146,23 @@ public struct OllamaRuntimeHandler: Sendable {
         return await reporting.loadedModelSources()
     }
 
+    public func loadedModels() async -> [RuntimeLoadedModel] {
+        if let reporting = runtime as? any RuntimeModelStateReporting {
+            return await reporting.loadedModels()
+        }
+        let sources = await loadedModelSources()
+        return sources.map { source in
+            RuntimeLoadedModel(
+                source: source,
+                loadedAt: now(),
+                lastUsedAt: now(),
+                family: Self.modelFamily(from: source),
+                parameterSize: Self.parameterSize(from: source),
+                quantizationLevel: Self.quantizationLevel(from: source)
+            )
+        }
+    }
+
     @discardableResult
     public func unloadModel(_ model: String) async -> Bool {
         guard let management = runtime as? any RuntimeModelManagement else {
@@ -155,6 +176,45 @@ public struct OllamaRuntimeHandler: Sendable {
             return false
         }
         return value == "0" || value == "0s" || value == "0m" || value == "0h"
+    }
+
+    public static func keepAliveDurationSeconds(_ keepAlive: String?) -> TimeInterval? {
+        guard let rawValue = keepAlive?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(), !rawValue.isEmpty else {
+            return nil
+        }
+        if shouldUnload(rawValue) { return 0 }
+        let unit = rawValue.last.map(String.init) ?? "s"
+        let numberText: String
+        let multiplier: Double
+        switch unit {
+        case "s":
+            numberText = String(rawValue.dropLast())
+            multiplier = 1
+        case "m":
+            numberText = String(rawValue.dropLast())
+            multiplier = 60
+        case "h":
+            numberText = String(rawValue.dropLast())
+            multiplier = 60 * 60
+        case "d":
+            numberText = String(rawValue.dropLast())
+            multiplier = 60 * 60 * 24
+        default:
+            numberText = rawValue
+            multiplier = 1
+        }
+        guard let value = Double(numberText), value >= 0 else { return nil }
+        return value * multiplier
+    }
+
+    private func applyKeepAlive(_ keepAlive: String?, model: String) async {
+        guard let seconds = Self.keepAliveDurationSeconds(keepAlive), seconds > 0 else {
+            return
+        }
+        guard let management = runtime as? any RuntimeModelExpirationManaging else {
+            return
+        }
+        await management.setModelExpiration(source: aliases.resolveSourceOrIdentity(model), expiresAt: Date().addingTimeInterval(seconds))
     }
 
     private func makeRuntimeRequest(from request: OllamaGenerateRequest) -> RuntimeGenerateRequest {
@@ -235,6 +295,33 @@ public struct OllamaRuntimeHandler: Sendable {
 
     public static func unixNow() -> Int {
         Int(Date().timeIntervalSince1970)
+    }
+
+    public static func modelFamily(from source: String) -> String {
+        let lowercased = source.lowercased()
+        if lowercased.contains("qwen2.5") || lowercased.contains("qwen2_5") { return "qwen2_5_vl" }
+        if lowercased.contains("qwen2-vl") || lowercased.contains("qwen2_vl") { return "qwen2_vl" }
+        if lowercased.contains("smolvlm") { return "smolvlm" }
+        if lowercased.contains("fastvlm") { return "fastvlm" }
+        if lowercased.contains("gemma") { return "gemma" }
+        return "vlm"
+    }
+
+    public static func parameterSize(from source: String) -> String {
+        let lowercased = source.lowercased()
+        if lowercased.contains("256m") { return "256M" }
+        if lowercased.contains("0.5b") { return "0.5B" }
+        if lowercased.contains("2b") { return "2B" }
+        if lowercased.contains("3b") { return "3B" }
+        if lowercased.contains("7b") { return "7B" }
+        return "unknown"
+    }
+
+    public static func quantizationLevel(from source: String) -> String {
+        let lowercased = source.lowercased()
+        if lowercased.contains("4bit") || lowercased.contains("4-bit") { return "Q4" }
+        if lowercased.contains("8bit") || lowercased.contains("8-bit") { return "Q8" }
+        return "unknown"
     }
 
     private static func openAICompletionID() -> String {

@@ -35,13 +35,52 @@ public protocol VLMRuntime: Sendable {
     func stream(_ request: RuntimeGenerateRequest) -> AsyncThrowingStream<RuntimeGenerateChunk, Error>
 }
 
+public struct RuntimeLoadedModel: Equatable, Sendable {
+    public let source: String
+    public let loadedAt: String
+    public let lastUsedAt: String
+    public let expiresAt: String?
+    public let size: Int
+    public let family: String
+    public let parameterSize: String
+    public let quantizationLevel: String
+
+    public init(
+        source: String,
+        loadedAt: String,
+        lastUsedAt: String,
+        expiresAt: String? = nil,
+        size: Int = 0,
+        family: String = "vlm",
+        parameterSize: String = "unknown",
+        quantizationLevel: String = "unknown"
+    ) {
+        self.source = source
+        self.loadedAt = loadedAt
+        self.lastUsedAt = lastUsedAt
+        self.expiresAt = expiresAt
+        self.size = size
+        self.family = family
+        self.parameterSize = parameterSize
+        self.quantizationLevel = quantizationLevel
+    }
+}
+
 public protocol RuntimeStateReporting: Sendable {
     func loadedModelSources() async -> [String]
+}
+
+public protocol RuntimeModelStateReporting: RuntimeStateReporting {
+    func loadedModels() async -> [RuntimeLoadedModel]
 }
 
 public protocol RuntimeModelManagement: Sendable {
     @discardableResult
     func unloadModelSource(_ source: String) async -> Bool
+}
+
+public protocol RuntimeModelExpirationManaging: RuntimeModelManagement {
+    func setModelExpiration(source: String, expiresAt: Date?) async
 }
 
 public enum RuntimeBridgeError: LocalizedError, Equatable, Sendable {
