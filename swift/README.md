@@ -10,7 +10,36 @@ This Swift workspace is an additive compatibility layer for `mlx-vlm`.
 - Keep OpenAI-compatible API support as a first-class adapter target.
 - Provide a lightweight local web UI.
 
-## Compatibility rule
+## Model smoke validation
+
+The default Swift CI avoids downloading large models. To validate real MLX/HuggingFace model compatibility on a macOS runner, run the manual GitHub Actions workflow:
+
+```text
+Actions → Swift model smoke → Run workflow
+```
+
+Default lightweight model:
+
+```text
+mlx-community/SmolVLM-256M-Instruct-4bit
+```
+
+Representative Qwen2.5-VL check:
+
+```text
+mlx-community/Qwen2.5-VL-3B-Instruct-4bit
+```
+
+Local macOS command:
+
+```bash
+cd swift
+./scripts/run-model-smoke.sh mlx-community/SmolVLM-256M-Instruct-4bit
+```
+
+The smoke test uses `Tests/Fixtures/smoke-image.svg` and calls the real `mlx-vlm-swift generate` command.
+
+## Compatibility notes
 
 Existing model files remain the source of truth:
 
