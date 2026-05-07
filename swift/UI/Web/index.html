@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MLX-VLM Swift</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <p class="eyebrow">MLX-VLM Swift Compat</p>
+      <h1>Ollama-style local VLM UI</h1>
+      <p class="subtitle">기존 MLX 모델을 유지하면서 Swift 런타임과 Ollama 호환 API로 실행하는 경량 UI 초안.</p>
+    </section>
+
+    <section class="card grid">
+      <label>
+        Model alias or source
+        <input id="model" value="qwen2.5-vl:3b" />
+      </label>
+      <label>
+        Max tokens
+        <input id="numPredict" type="number" value="128" min="1" />
+      </label>
+      <label>
+        Temperature
+        <input id="temperature" type="number" value="0" min="0" max="2" step="0.1" />
+      </label>
+      <label class="checkbox">
+        <input id="stream" type="checkbox" checked />
+        Stream JSONL
+      </label>
+    </section>
+
+    <section class="card">
+      <label>
+        Image
+        <input id="image" type="file" accept="image/*" />
+      </label>
+      <label>
+        Prompt
+        <textarea id="prompt" rows="5">Describe this image.</textarea>
+      </label>
+      <button id="generate">Generate via /api/generate</button>
+    </section>
+
+    <section class="card">
+      <div class="response-header">
+        <h2>Response</h2>
+        <button id="clear" class="secondary">Clear</button>
+      </div>
+      <pre id="response" aria-live="polite"></pre>
+    </section>
+
+    <section class="card muted">
+      <h2>API hints</h2>
+      <code>POST /api/generate</code>
+      <code>POST /api/chat</code>
+      <code>GET /api/tags</code>
+      <code>GET /api/version</code>
+    </section>
+  </main>
+  <script src="./app.js"></script>
+</body>
+</html>
