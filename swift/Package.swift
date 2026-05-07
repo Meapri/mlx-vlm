@@ -36,7 +36,7 @@ let package = Package(
                 .product(name: "HuggingFace", package: "swift-huggingface")
             ]
         ),
-        .executableTarget(name: "mlx-vlm-swift", dependencies: ["MLXVLMCore", "MLXVLMCompat", "MLXVLMOllama", "MLXVLMServer"]),
+        .executableTarget(name: "mlx-vlm-swift", dependencies: ["MLXVLMCore", "MLXVLMCompat", "MLXVLMOllama", "MLXVLMServer", "MLXVLMRuntime"]),
         .testTarget(name: "MLXVLMCompatTests", dependencies: ["MLXVLMCore", "MLXVLMCompat"]),
         .testTarget(name: "MLXVLMOllamaTests", dependencies: ["MLXVLMCore", "MLXVLMCompat", "MLXVLMOllama", "MLXVLMServer"]),
         .testTarget(name: "MLXVLMRuntimeTests", dependencies: ["MLXVLMRuntime"])
