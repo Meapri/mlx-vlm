@@ -212,7 +212,7 @@ public struct OllamaRuntimeHandler: Sendable {
         messages.flatMap { message in
             switch message.content {
             case .text:
-                return []
+                return [String]()
             case .parts(let parts):
                 return parts.compactMap { part in
                     guard part.type == "image_url", let url = part.imageUrl?.url else { return nil }
