@@ -1,5 +1,6 @@
 import Foundation
 import MLXVLMCore
+import MLXVLMOllama
 import MLXVLMServer
 import MLXVLMRuntime
 
@@ -20,9 +21,7 @@ struct MLXVLMCompatCLI {
                 print("\(alias.name) -> \(alias.source)")
             }
         case "serve":
-            print("Server implementation pending HTTP framework binding.")
-            print("Default target: http://\(ServerShell.defaultHost):\(ServerShell.defaultPort)")
-            print(ServerShell.routeSummary())
+            try runServe(Array(arguments.dropFirst()))
         case "help", "--help", "-h":
             fallthrough
         default:
@@ -65,6 +64,21 @@ struct MLXVLMCompatCLI {
         }
     }
 
+    private static func runServe(_ arguments: [String]) throws -> Never {
+        let options = CLIOptions(arguments)
+        let host = options.value(for: "--host") ?? ServerShell.defaultHost
+        let port = options.intValue(for: "--port") ?? ServerShell.defaultPort
+        let aliases = ModelAliasStore()
+        let runtime = MLXSwiftVLMRuntime()
+        let handler = OllamaRuntimeHandler(runtime: runtime, aliases: aliases)
+        let router = OllamaHTTPRouter(runtimeHandler: handler, aliases: aliases)
+        let server = OllamaNetworkServer(host: host, port: port, router: router)
+
+        print("MLX-VLM Swift Ollama-compatible server listening on http://\(host):\(port)")
+        print(ServerShell.routeSummary())
+        return try server.runForever()
+    }
+
     private static func imageInputs(from options: CLIOptions) -> [String] {
         var images = options.values(for: "--image-base64")
         for path in options.values(for: "--image") {
@@ -83,7 +97,7 @@ struct MLXVLMCompatCLI {
           generate  Run MLX Swift VLM generation
           routes    Print planned Ollama/OpenAI-compatible HTTP routes
           aliases   Print built-in Ollama-style model aliases
-          serve     Print server target and route manifest (HTTP binding pending)
+          serve     Run Ollama-compatible HTTP server
 
         Generate example:
           mlx-vlm-swift generate \
