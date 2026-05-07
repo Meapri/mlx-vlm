@@ -122,3 +122,36 @@ models=payload.get('loaded_models') or []
 assert os.environ.get('MODEL') in models, payload
 print('\nruntime_loaded_models=', models)
 PY
+
+python3 - <<'PY' > /tmp/mlx-vlm-ollama-generate-stream.json
+import base64, json, os
+with open(os.environ.get('IMAGE', 'Tests/Fixtures/smoke-image.png'), 'rb') as f:
+    image = base64.b64encode(f.read()).decode()
+print(json.dumps({
+    'model': os.environ.get('MODEL', 'mlx-community/Qwen2-VL-2B-Instruct-4bit'),
+    'prompt': os.environ.get('PROMPT', 'Describe this image in one short sentence.'),
+    'images': [image],
+    'stream': True,
+    'options': {
+        'num_predict': int(os.environ.get('MAX_TOKENS', '8')),
+        'temperature': 0,
+        'top_p': 1,
+    },
+}))
+PY
+
+curl -fsS --max-time 180 \
+  -H 'Content-Type: application/json' \
+  -d @/tmp/mlx-vlm-ollama-generate-stream.json \
+  "${BASE_URL}/api/generate" | tee /tmp/mlx-vlm-ollama-generate-stream-response.ndjson
+python3 - <<'PY'
+import json
+lines=[line for line in open('/tmp/mlx-vlm-ollama-generate-stream-response.ndjson') if line.strip()]
+assert lines, 'empty stream response'
+payloads=[json.loads(line) for line in lines]
+assert payloads[-1].get('done') is True, payloads[-1]
+text=''.join(p.get('response') or '' for p in payloads)
+assert text, payloads
+print('\nollama_stream_chunks=', len(payloads))
+print('ollama_stream_response=', text)
+PY
