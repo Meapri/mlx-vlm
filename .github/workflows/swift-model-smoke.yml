@@ -22,7 +22,7 @@ on:
 
 jobs:
   model-smoke:
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: ${{ fromJSON(inputs.timeout_minutes) }}
     defaults:
       run:
