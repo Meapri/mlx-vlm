@@ -19,6 +19,18 @@ private struct OpenAIEchoRuntime: VLMRuntime {
     }
 }
 
+private actor OpenAIChunkCollector {
+    private var chunks: [String] = []
+
+    func append(_ data: Data) {
+        chunks.append(String(decoding: data, as: UTF8.self))
+    }
+
+    func joined() -> String {
+        chunks.joined()
+    }
+}
+
 final class OpenAIHTTPRouterTests: XCTestCase {
     func testOpenAIModelsRouteListsAliases() async throws {
         let aliases = ModelAliasStore(aliases: [
@@ -105,14 +117,14 @@ final class OpenAIHTTPRouterTests: XCTestCase {
         let router = OllamaHTTPRouter(runtimeHandler: handler)
         let request = OpenAIChatCompletionRequest(model: "local", messages: [OpenAIChatMessage(role: "user", content: "Hi")], stream: true)
         let body = try JSONEncoder.openAI.encode(request)
-        var chunks: [String] = []
+        let collector = OpenAIChunkCollector()
 
         let didStream = try await router.stream(HTTPRequest(method: "POST", path: "/v1/chat/completions", headers: [:], body: body)) { data in
-            chunks.append(String(decoding: data, as: UTF8.self))
+            await collector.append(data)
         }
 
         XCTAssertTrue(didStream)
-        let joined = chunks.joined()
+        let joined = await collector.joined()
         XCTAssertTrue(joined.contains("data: "))
         XCTAssertTrue(joined.contains("hello"))
         XCTAssertTrue(joined.contains(" world"))
