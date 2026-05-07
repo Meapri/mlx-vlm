@@ -2,7 +2,7 @@
 set -euo pipefail
 
 MODEL="${1:-${MODEL:-mlx-community/SmolVLM-256M-Instruct-4bit}}"
-IMAGE="${2:-${IMAGE:-Tests/Fixtures/smoke-image.svg}}"
+IMAGE="${2:-${IMAGE:-Tests/Fixtures/smoke-image.png}}"
 PROMPT="${3:-${PROMPT:-Describe this image in one short sentence.}}"
 MAX_TOKENS="${MAX_TOKENS:-32}"
 TEMPERATURE="${TEMPERATURE:-0}"
