@@ -34,6 +34,10 @@ public struct OllamaHTTPRouter: Sendable {
             return try await handleGenerate(request)
         case ("POST", "/api/chat"):
             return try await handleChat(request)
+        case ("GET", "/v1/models"):
+            return try handleOpenAIModels()
+        case ("POST", "/v1/chat/completions"):
+            return try await handleOpenAIChatCompletions(request)
         case ("GET", "/"):
             return HTTPResponse.text(Self.settingsUIHTML, contentType: "text/html; charset=utf-8")
         case ("GET", "/mlx-vlm/settings"):
@@ -66,6 +70,14 @@ public struct OllamaHTTPRouter: Sendable {
                 line.append(0x0A)
                 try await send(line)
             }
+            return true
+        case ("POST", "/v1/chat/completions"):
+            let chatRequest = try JSONDecoder.openAI.decode(OpenAIChatCompletionRequest.self, from: request.body)
+            guard chatRequest.stream == true else { return false }
+            for try await chunk in runtimeHandler.openAIChatCompletionStream(chatRequest) {
+                try await send(Self.openAISSEData(chunk))
+            }
+            try await send(Data("data: [DONE]\n\n".utf8))
             return true
         default:
             return false
@@ -134,6 +146,30 @@ public struct OllamaHTTPRouter: Sendable {
         return try await HTTPResponse.json(runtimeHandler.chat(request), encoder: .ollama)
     }
 
+    private func handleOpenAIModels() throws -> HTTPResponse {
+        let models = aliases.aliases.map { alias in
+            OpenAIModel(id: alias.name, created: 0, ownedBy: "mlx-vlm")
+        }
+        return try HTTPResponse.json(OpenAIModelsResponse(data: models), encoder: .openAI)
+    }
+
+    private func handleOpenAIChatCompletions(_ httpRequest: HTTPRequest) async throws -> HTTPResponse {
+        let request = try JSONDecoder.openAI.decode(OpenAIChatCompletionRequest.self, from: httpRequest.body)
+        if request.stream == true {
+            var events: [String] = []
+            for try await chunk in runtimeHandler.openAIChatCompletionStream(request) {
+                events.append(String(decoding: Self.openAISSEData(chunk), as: UTF8.self))
+            }
+            events.append("data: [DONE]\n\n")
+            return HTTPResponse(
+                statusCode: 200,
+                headers: ["content-type": "text/event-stream"],
+                body: Data(events.joined().utf8)
+            )
+        }
+        return try await HTTPResponse.json(runtimeHandler.openAIChatCompletion(request), encoder: .openAI)
+    }
+
     private func handleRunningModels() async throws -> HTTPResponse {
         let loadedModels = await runtimeHandler.loadedModelSources()
         let tags = loadedModels.map { source in
@@ -192,6 +228,11 @@ public struct OllamaHTTPRouter: Sendable {
             ),
             encoder: .settings
         )
+    }
+
+    private static func openAISSEData(_ chunk: OpenAIChatCompletionResponse) throws -> Data {
+        let encoded = try JSONEncoder.openAI.encode(chunk)
+        return Data("data: \(String(decoding: encoded, as: UTF8.self))\n\n".utf8)
     }
 
     private static let settingsUIHTML = """

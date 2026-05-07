@@ -55,7 +55,7 @@ public final class OllamaNetworkServer: @unchecked Sendable {
                             let headers = HTTPMessageCodec.serializeHeaders(
                                 statusCode: 200,
                                 reasonPhrase: "OK",
-                                headers: ["content-type": "application/x-ndjson"]
+                                headers: ["content-type": Self.streamContentType(for: request)]
                             )
                             try await Self.send(headers, on: connection)
                         }
@@ -86,13 +86,17 @@ public final class OllamaNetworkServer: @unchecked Sendable {
     }
 
     private static func mayStream(_ request: HTTPRequest) -> Bool {
-        guard request.method == "POST", request.path == "/api/generate" || request.path == "/api/chat" else {
+        guard request.method == "POST", request.path == "/api/generate" || request.path == "/api/chat" || request.path == "/v1/chat/completions" else {
             return false
         }
         guard let body = String(data: request.body, encoding: .utf8) else {
             return false
         }
         return body.contains("\"stream\":true") || body.contains("\"stream\": true")
+    }
+
+    private static func streamContentType(for request: HTTPRequest) -> String {
+        request.path == "/v1/chat/completions" ? "text/event-stream" : "application/x-ndjson"
     }
 
     private static func send(_ data: Data, on connection: NWConnection) async throws {
