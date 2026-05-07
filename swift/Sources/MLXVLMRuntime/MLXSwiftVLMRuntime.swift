@@ -149,10 +149,11 @@ public actor MLXSwiftVLMRuntime: VLMRuntime {
                 throw MLXSwiftVLMRuntimeError.invalidBase64Image
             }
 
+            let fileExtension = Self.imageFileExtension(for: data)
             let url = FileManager.default.temporaryDirectory
                 .appendingPathComponent("mlx-vlm-swift-")
                 .appendingPathComponent(UUID().uuidString)
-                .appendingPathExtension("image")
+                .appendingPathExtension(fileExtension)
             try FileManager.default.createDirectory(
                 at: url.deletingLastPathComponent(),
                 withIntermediateDirectories: true
@@ -163,6 +164,31 @@ public actor MLXSwiftVLMRuntime: VLMRuntime {
         }
 
         return (images, temporaryFiles)
+    }
+
+    private nonisolated static func imageFileExtension(for data: Data) -> String {
+        let bytes = [UInt8](data.prefix(16))
+        if bytes.starts(with: [0x89, 0x50, 0x4E, 0x47]) {
+            return "png"
+        }
+        if bytes.starts(with: [0xFF, 0xD8, 0xFF]) {
+            return "jpg"
+        }
+        if bytes.starts(with: [0x47, 0x49, 0x46, 0x38]) {
+            return "gif"
+        }
+        if bytes.count >= 12,
+           bytes[0] == 0x52, bytes[1] == 0x49, bytes[2] == 0x46, bytes[3] == 0x46,
+           bytes[8] == 0x57, bytes[9] == 0x45, bytes[10] == 0x42, bytes[11] == 0x50 {
+            return "webp"
+        }
+        if let rawPrefix = String(data: data.prefix(256), encoding: .utf8) {
+            let prefix = rawPrefix.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            if prefix.hasPrefix("<svg") || prefix.hasPrefix("<?xml") {
+                return "svg"
+            }
+        }
+        return "png"
     }
 
     private nonisolated static func removeTemporaryFiles(_ urls: [URL]) {
