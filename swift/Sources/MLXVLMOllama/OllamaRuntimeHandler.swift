@@ -95,6 +95,21 @@ public struct OllamaRuntimeHandler: Sendable {
         return await reporting.loadedModelSources()
     }
 
+    @discardableResult
+    public func unloadModel(_ model: String) async -> Bool {
+        guard let management = runtime as? any RuntimeModelManagement else {
+            return false
+        }
+        return await management.unloadModelSource(aliases.resolveSourceOrIdentity(model))
+    }
+
+    public static func shouldUnload(_ keepAlive: String?) -> Bool {
+        guard let value = keepAlive?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() else {
+            return false
+        }
+        return value == "0" || value == "0s" || value == "0m" || value == "0h"
+    }
+
     private func makeRuntimeRequest(from request: OllamaGenerateRequest) -> RuntimeGenerateRequest {
         RuntimeGenerateRequest(
             modelSource: aliases.resolveSourceOrIdentity(request.model),

@@ -39,6 +39,11 @@ public protocol RuntimeStateReporting: Sendable {
     func loadedModelSources() async -> [String]
 }
 
+public protocol RuntimeModelManagement: Sendable {
+    @discardableResult
+    func unloadModelSource(_ source: String) async -> Bool
+}
+
 public enum RuntimeBridgeError: LocalizedError, Equatable, Sendable {
     case runtimeNotConnected
 

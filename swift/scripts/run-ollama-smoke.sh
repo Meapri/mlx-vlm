@@ -225,3 +225,34 @@ assert text, payloads
 print('\nollama_chat_stream_chunks=', len(payloads))
 print('ollama_chat_stream_response=', text)
 PY
+
+python3 - <<'PY' > /tmp/mlx-vlm-ollama-unload.json
+import json, os
+print(json.dumps({
+    'model': os.environ.get('MODEL', 'mlx-community/Qwen2-VL-2B-Instruct-4bit'),
+    'prompt': '',
+    'stream': False,
+    'keep_alive': '0',
+}))
+PY
+
+curl -fsS --max-time 30 \
+  -H 'Content-Type: application/json' \
+  -d @/tmp/mlx-vlm-ollama-unload.json \
+  "${BASE_URL}/api/generate" | tee /tmp/mlx-vlm-ollama-unload-response.json
+python3 - <<'PY'
+import json
+payload=json.load(open('/tmp/mlx-vlm-ollama-unload-response.json'))
+assert payload.get('done') is True, payload
+assert payload.get('done_reason') == 'unload', payload
+print('\nollama_unload_done=', payload.get('done_reason'))
+PY
+
+curl -fsS "${BASE_URL}/api/ps" | tee /tmp/mlx-vlm-ollama-ps-after-unload.json
+python3 - <<'PY'
+import json, os
+payload=json.load(open('/tmp/mlx-vlm-ollama-ps-after-unload.json'))
+models=payload.get('models') or []
+assert not any(m.get('model') == os.environ.get('MODEL') or m.get('name') == os.environ.get('MODEL') for m in models), payload
+print('\nollama_ps_after_unload_models=', [m.get('model') for m in models])
+PY

@@ -13,7 +13,7 @@ import Tokenizers
 /// can be either:
 /// - a local model directory containing `config.json`, tokenizer files, and `*.safetensors`
 /// - a HuggingFace model id such as `mlx-community/Qwen2.5-VL-3B-Instruct-4bit`
-public actor MLXSwiftVLMRuntime: VLMRuntime, RuntimeStateReporting {
+public actor MLXSwiftVLMRuntime: VLMRuntime, RuntimeStateReporting, RuntimeModelManagement {
     private var containers: [String: ModelContainer] = [:]
 
     public init() {
@@ -96,6 +96,11 @@ public actor MLXSwiftVLMRuntime: VLMRuntime, RuntimeStateReporting {
 
     public func loadedModelSources() async -> [String] {
         containers.keys.sorted()
+    }
+
+    @discardableResult
+    public func unloadModelSource(_ source: String) async -> Bool {
+        containers.removeValue(forKey: source) != nil
     }
 
     private func container(for source: String) async throws -> ModelContainer {

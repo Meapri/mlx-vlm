@@ -74,6 +74,19 @@ public struct OllamaHTTPRouter: Sendable {
 
     private func handleGenerate(_ httpRequest: HTTPRequest) async throws -> HTTPResponse {
         let request = try JSONDecoder.ollama.decode(OllamaGenerateRequest.self, from: httpRequest.body)
+        if OllamaRuntimeHandler.shouldUnload(request.keepAlive), request.prompt.isEmpty {
+            _ = await runtimeHandler.unloadModel(request.model)
+            return try HTTPResponse.json(
+                OllamaGenerateResponse(
+                    model: request.model,
+                    createdAt: OllamaRuntimeHandler.iso8601Now(),
+                    response: "",
+                    done: true,
+                    doneReason: "unload"
+                ),
+                encoder: .ollama
+            )
+        }
         if request.stream == true {
             var lines: [String] = []
             for try await chunk in runtimeHandler.generateStream(request) {
@@ -92,6 +105,19 @@ public struct OllamaHTTPRouter: Sendable {
 
     private func handleChat(_ httpRequest: HTTPRequest) async throws -> HTTPResponse {
         let request = try JSONDecoder.ollama.decode(OllamaChatRequest.self, from: httpRequest.body)
+        if OllamaRuntimeHandler.shouldUnload(request.keepAlive), request.messages.isEmpty {
+            _ = await runtimeHandler.unloadModel(request.model)
+            return try HTTPResponse.json(
+                OllamaChatResponse(
+                    model: request.model,
+                    createdAt: OllamaRuntimeHandler.iso8601Now(),
+                    message: OllamaMessage(role: "assistant", content: ""),
+                    done: true,
+                    doneReason: "unload"
+                ),
+                encoder: .ollama
+            )
+        }
         if request.stream == true {
             var lines: [String] = []
             for try await chunk in runtimeHandler.chatStream(request) {
