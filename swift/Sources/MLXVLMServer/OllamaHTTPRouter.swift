@@ -158,7 +158,7 @@ public struct OllamaHTTPRouter: Sendable {
         if request.stream == true {
             var events: [String] = []
             for try await chunk in runtimeHandler.openAIChatCompletionStream(request) {
-                events.append(String(decoding: Self.openAISSEData(chunk), as: UTF8.self))
+                events.append(String(decoding: try Self.openAISSEData(chunk), as: UTF8.self))
             }
             events.append("data: [DONE]\n\n")
             return HTTPResponse(
