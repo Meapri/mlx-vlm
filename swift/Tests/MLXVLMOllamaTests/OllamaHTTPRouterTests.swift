@@ -113,9 +113,9 @@ final class OllamaHTTPRouterTests: XCTestCase {
         XCTAssertEqual(response.statusCode, 200)
         XCTAssertEqual(response.headerValue("content-type"), "text/html; charset=utf-8")
         let html = String(decoding: response.body, as: UTF8.self)
-        XCTAssertTrue(html.contains("/api/tags"))
-        XCTAssertTrue(html.contains("/api/generate"))
-        XCTAssertTrue(html.contains("MLX-VLM Swift"))
+        XCTAssertTrue(html.contains("/mlx-vlm/settings"))
+        XCTAssertTrue(html.contains("/mlx-vlm/status"))
+        XCTAssertTrue(html.contains("MLX-VLM Swift Settings"))
     }
 
     func testUnknownRouteReturns404() async throws {
