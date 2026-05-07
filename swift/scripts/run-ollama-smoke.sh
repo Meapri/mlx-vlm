@@ -104,3 +104,21 @@ assert payload.get('done') is True, payload
 assert payload.get('response'), payload
 print('\nollama_generate_response=', payload['response'])
 PY
+
+curl -fsS "${BASE_URL}/api/ps" | tee /tmp/mlx-vlm-ollama-ps.json
+python3 - <<'PY'
+import json, os
+payload=json.load(open('/tmp/mlx-vlm-ollama-ps.json'))
+models=payload.get('models') or []
+assert any(m.get('model') == os.environ.get('MODEL') or m.get('name') == os.environ.get('MODEL') for m in models), payload
+print('\nollama_ps_models=', [m.get('model') for m in models])
+PY
+
+curl -fsS "${BASE_URL}/mlx-vlm/status" | tee /tmp/mlx-vlm-status.json
+python3 - <<'PY'
+import json, os
+payload=json.load(open('/tmp/mlx-vlm-status.json'))
+models=payload.get('loaded_models') or []
+assert os.environ.get('MODEL') in models, payload
+print('\nruntime_loaded_models=', models)
+PY

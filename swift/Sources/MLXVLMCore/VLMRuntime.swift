@@ -35,6 +35,10 @@ public protocol VLMRuntime: Sendable {
     func stream(_ request: RuntimeGenerateRequest) -> AsyncThrowingStream<RuntimeGenerateChunk, Error>
 }
 
+public protocol RuntimeStateReporting: Sendable {
+    func loadedModelSources() async -> [String]
+}
+
 public enum RuntimeBridgeError: LocalizedError, Equatable, Sendable {
     case runtimeNotConnected
 

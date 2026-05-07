@@ -27,7 +27,7 @@ public struct OllamaHTTPRouter: Sendable {
         case ("GET", "/api/tags"):
             return try HTTPResponse.json(OllamaAdapter.tagsResponse(from: aliases.aliases, createdAt: OllamaRuntimeHandler.iso8601Now()), encoder: .ollama)
         case ("GET", "/api/ps"):
-            return try HTTPResponse.json(OllamaRunningModelsResponse(models: []), encoder: .ollama)
+            return try await handleRunningModels()
         case ("POST", "/api/show"):
             return try handleShow(request)
         case ("POST", "/api/generate"):
@@ -41,7 +41,7 @@ public struct OllamaHTTPRouter: Sendable {
         case ("PUT", "/mlx-vlm/settings"), ("POST", "/mlx-vlm/settings"):
             return try handleSaveSettings(request)
         case ("GET", "/mlx-vlm/status"):
-            return try handleStatus()
+            return try await handleStatus()
         default:
             return HTTPResponse.notFound()
         }
@@ -83,6 +83,21 @@ public struct OllamaHTTPRouter: Sendable {
         return try await HTTPResponse.json(runtimeHandler.chat(request), encoder: .ollama)
     }
 
+    private func handleRunningModels() async throws -> HTTPResponse {
+        let loadedModels = await runtimeHandler.loadedModelSources()
+        let tags = loadedModels.map { source in
+            OllamaModelTag(
+                name: source,
+                model: source,
+                modifiedAt: OllamaRuntimeHandler.iso8601Now(),
+                size: 0,
+                digest: source,
+                details: OllamaModelDetails(family: "vlm", families: ["vlm"])
+            )
+        }
+        return try HTTPResponse.json(OllamaRunningModelsResponse(models: tags), encoder: .ollama)
+    }
+
     private func handleShow(_ httpRequest: HTTPRequest) throws -> HTTPResponse {
         let request = try JSONDecoder.ollama.decode(OllamaShowRequest.self, from: httpRequest.body)
         let tags = OllamaAdapter.tagsResponse(from: aliases.aliases, createdAt: OllamaRuntimeHandler.iso8601Now()).models
@@ -112,8 +127,9 @@ public struct OllamaHTTPRouter: Sendable {
         return try HTTPResponse.json(settings, encoder: .settings)
     }
 
-    private func handleStatus() throws -> HTTPResponse {
+    private func handleStatus() async throws -> HTTPResponse {
         let settings = try settingsStore.loadOrCreateDefault()
+        let loadedModels = await runtimeHandler.loadedModelSources()
         return try HTTPResponse.json(
             RuntimeStatus(
                 version: version,
@@ -121,7 +137,7 @@ public struct OllamaHTTPRouter: Sendable {
                 serverRunning: true,
                 ollamaAPIEnabled: settings.ollamaAPIEnabled,
                 openAIAPIEnabled: settings.openAIAPIEnabled,
-                loadedModels: []
+                loadedModels: loadedModels
             ),
             encoder: .settings
         )

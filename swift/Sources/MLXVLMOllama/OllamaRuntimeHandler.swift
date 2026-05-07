@@ -88,6 +88,13 @@ public struct OllamaRuntimeHandler: Sendable {
         }
     }
 
+    public func loadedModelSources() async -> [String] {
+        guard let reporting = runtime as? any RuntimeStateReporting else {
+            return []
+        }
+        return await reporting.loadedModelSources()
+    }
+
     private func makeRuntimeRequest(from request: OllamaGenerateRequest) -> RuntimeGenerateRequest {
         RuntimeGenerateRequest(
             modelSource: aliases.resolveSourceOrIdentity(request.model),
