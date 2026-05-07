@@ -155,3 +155,73 @@ assert text, payloads
 print('\nollama_stream_chunks=', len(payloads))
 print('ollama_stream_response=', text)
 PY
+
+python3 - <<'PY' > /tmp/mlx-vlm-ollama-chat.json
+import base64, json, os
+with open(os.environ.get('IMAGE', 'Tests/Fixtures/smoke-image.png'), 'rb') as f:
+    image = base64.b64encode(f.read()).decode()
+print(json.dumps({
+    'model': os.environ.get('MODEL', 'mlx-community/Qwen2-VL-2B-Instruct-4bit'),
+    'messages': [{
+        'role': 'user',
+        'content': os.environ.get('PROMPT', 'Describe this image in one short sentence.'),
+        'images': [image],
+    }],
+    'stream': False,
+    'options': {
+        'num_predict': int(os.environ.get('MAX_TOKENS', '8')),
+        'temperature': 0,
+        'top_p': 1,
+    },
+}))
+PY
+
+curl -fsS --max-time 180 \
+  -H 'Content-Type: application/json' \
+  -d @/tmp/mlx-vlm-ollama-chat.json \
+  "${BASE_URL}/api/chat" | tee /tmp/mlx-vlm-ollama-chat-response.json
+python3 - <<'PY'
+import json
+payload=json.load(open('/tmp/mlx-vlm-ollama-chat-response.json'))
+assert payload.get('done') is True, payload
+message=payload.get('message') or {}
+assert message.get('role') == 'assistant', payload
+assert message.get('content'), payload
+print('\nollama_chat_response=', message['content'])
+PY
+
+python3 - <<'PY' > /tmp/mlx-vlm-ollama-chat-stream.json
+import base64, json, os
+with open(os.environ.get('IMAGE', 'Tests/Fixtures/smoke-image.png'), 'rb') as f:
+    image = base64.b64encode(f.read()).decode()
+print(json.dumps({
+    'model': os.environ.get('MODEL', 'mlx-community/Qwen2-VL-2B-Instruct-4bit'),
+    'messages': [{
+        'role': 'user',
+        'content': os.environ.get('PROMPT', 'Describe this image in one short sentence.'),
+        'images': [image],
+    }],
+    'stream': True,
+    'options': {
+        'num_predict': int(os.environ.get('MAX_TOKENS', '8')),
+        'temperature': 0,
+        'top_p': 1,
+    },
+}))
+PY
+
+curl -fsS --max-time 180 \
+  -H 'Content-Type: application/json' \
+  -d @/tmp/mlx-vlm-ollama-chat-stream.json \
+  "${BASE_URL}/api/chat" | tee /tmp/mlx-vlm-ollama-chat-stream-response.ndjson
+python3 - <<'PY'
+import json
+lines=[line for line in open('/tmp/mlx-vlm-ollama-chat-stream-response.ndjson') if line.strip()]
+assert lines, 'empty chat stream response'
+payloads=[json.loads(line) for line in lines]
+assert payloads[-1].get('done') is True, payloads[-1]
+text=''.join((p.get('message') or {}).get('content') or '' for p in payloads)
+assert text, payloads
+print('\nollama_chat_stream_chunks=', len(payloads))
+print('ollama_chat_stream_response=', text)
+PY
