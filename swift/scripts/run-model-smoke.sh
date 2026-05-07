@@ -27,8 +27,7 @@ if [[ -z "${METALLIB}" ]]; then
     echo "Compiling MLX metallib from ${MLX_METAL_DIR}"
     AIR_DIR="${BIN_DIR}/mlx-air"
     mkdir -p "${AIR_DIR}"
-    mapfile -t METAL_SOURCES < <(find "${MLX_METAL_DIR}" -name '*.metal' | sort)
-    for source in "${METAL_SOURCES[@]}"; do
+    find "${MLX_METAL_DIR}" -name '*.metal' | sort | while IFS= read -r source; do
       rel="${source#${MLX_METAL_DIR}/}"
       out="${AIR_DIR}/${rel//\//_}.air"
       xcrun -sdk macosx metal -I "${MLX_METAL_DIR}" -c "${source}" -o "${out}"
