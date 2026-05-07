@@ -6,7 +6,7 @@ on:
       model:
         description: HuggingFace/MLX model id or local path
         required: true
-        default: mlx-community/SmolVLM-256M-Instruct-4bit
+        default: mlx-community/Qwen2-VL-2B-Instruct-4bit
       prompt:
         description: Prompt for the smoke generation
         required: true

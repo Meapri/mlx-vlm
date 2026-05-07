@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-MODEL="${1:-${MODEL:-mlx-community/SmolVLM-256M-Instruct-4bit}}"
+MODEL="${1:-${MODEL:-mlx-community/Qwen2-VL-2B-Instruct-4bit}}"
 IMAGE="${2:-${IMAGE:-Tests/Fixtures/smoke-image.png}}"
 PROMPT="${3:-${PROMPT:-Describe this image in one short sentence.}}"
 MAX_TOKENS="${MAX_TOKENS:-32}"

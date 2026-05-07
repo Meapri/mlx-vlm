@@ -21,7 +21,7 @@ Actions → Swift model smoke → Run workflow
 Default lightweight model:
 
 ```text
-mlx-community/SmolVLM-256M-Instruct-4bit
+mlx-community/Qwen2-VL-2B-Instruct-4bit
 ```
 
 Representative Qwen2.5-VL check:
@@ -34,7 +34,7 @@ Local macOS command:
 
 ```bash
 cd swift
-./scripts/run-model-smoke.sh mlx-community/SmolVLM-256M-Instruct-4bit
+./scripts/run-model-smoke.sh mlx-community/Qwen2-VL-2B-Instruct-4bit
 ```
 
 The smoke test uses `Tests/Fixtures/smoke-image.svg` and calls the real `mlx-vlm-swift generate` command.
