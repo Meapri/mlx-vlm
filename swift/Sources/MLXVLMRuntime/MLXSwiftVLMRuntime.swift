@@ -16,15 +16,14 @@ import Tokenizers
 public actor MLXSwiftVLMRuntime: VLMRuntime {
     private var containers: [String: ModelContainer] = [:]
 
-    public init() {}
+    public init() {
+        if Self.requestedDevice() == "cpu" {
+            Device.setDefault(device: .cpu)
+        }
+    }
 
     public func generate(_ request: RuntimeGenerateRequest) async throws -> RuntimeGenerateChunk {
-        if Self.requestedDevice() == "cpu" {
-            return try await Device.withDefaultDevice(.cpu) {
-                try await generateOnConfiguredDevice(request)
-            }
-        }
-        return try await generateOnConfiguredDevice(request)
+        try await generateOnConfiguredDevice(request)
     }
 
     private func generateOnConfiguredDevice(_ request: RuntimeGenerateRequest) async throws -> RuntimeGenerateChunk {
@@ -54,13 +53,7 @@ public actor MLXSwiftVLMRuntime: VLMRuntime {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    if Self.requestedDevice() == "cpu" {
-                        try await Device.withDefaultDevice(.cpu) {
-                            try await self.streamOnConfiguredDevice(request, continuation: continuation)
-                        }
-                    } else {
-                        try await self.streamOnConfiguredDevice(request, continuation: continuation)
-                    }
+                    try await self.streamOnConfiguredDevice(request, continuation: continuation)
                 } catch {
                     continuation.finish(throwing: error)
                 }
