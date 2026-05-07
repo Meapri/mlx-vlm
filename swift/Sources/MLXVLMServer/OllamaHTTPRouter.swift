@@ -47,6 +47,31 @@ public struct OllamaHTTPRouter: Sendable {
         }
     }
 
+    public func stream(_ request: HTTPRequest, send: @Sendable (Data) async throws -> Void) async throws -> Bool {
+        switch (request.method, request.path) {
+        case ("POST", "/api/generate"):
+            let generateRequest = try JSONDecoder.ollama.decode(OllamaGenerateRequest.self, from: request.body)
+            guard generateRequest.stream == true else { return false }
+            for try await chunk in runtimeHandler.generateStream(generateRequest) {
+                var line = try JSONEncoder.ollama.encode(chunk)
+                line.append(0x0A)
+                try await send(line)
+            }
+            return true
+        case ("POST", "/api/chat"):
+            let chatRequest = try JSONDecoder.ollama.decode(OllamaChatRequest.self, from: request.body)
+            guard chatRequest.stream == true else { return false }
+            for try await chunk in runtimeHandler.chatStream(chatRequest) {
+                var line = try JSONEncoder.ollama.encode(chunk)
+                line.append(0x0A)
+                try await send(line)
+            }
+            return true
+        default:
+            return false
+        }
+    }
+
     private func handleGenerate(_ httpRequest: HTTPRequest) async throws -> HTTPResponse {
         let request = try JSONDecoder.ollama.decode(OllamaGenerateRequest.self, from: httpRequest.body)
         if request.stream == true {

@@ -51,6 +51,20 @@ public final class OllamaNetworkServer: @unchecked Sendable {
                 } else if let data, !data.isEmpty {
                     do {
                         let request = try HTTPMessageCodec.parseRequest(data)
+                        if Self.mayStream(request) {
+                            let headers = HTTPMessageCodec.serializeHeaders(
+                                statusCode: 200,
+                                reasonPhrase: "OK",
+                                headers: ["content-type": "application/x-ndjson"]
+                            )
+                            try await Self.send(headers, on: connection)
+                        }
+                        if try await router.stream(request, send: { chunk in
+                            try await Self.send(chunk, on: connection)
+                        }) {
+                            connection.cancel()
+                            return
+                        }
                         response = try await router.handle(request)
                     } catch let decodingError as DecodingError {
                         response = HTTPResponse.badRequest(String(describing: decodingError))
@@ -68,6 +82,28 @@ public final class OllamaNetworkServer: @unchecked Sendable {
                     connection.cancel()
                 })
             }
+        }
+    }
+
+    private static func mayStream(_ request: HTTPRequest) -> Bool {
+        guard request.method == "POST", request.path == "/api/generate" || request.path == "/api/chat" else {
+            return false
+        }
+        guard let body = String(data: request.body, encoding: .utf8) else {
+            return false
+        }
+        return body.contains("\"stream\":true") || body.contains("\"stream\": true")
+    }
+
+    private static func send(_ data: Data, on connection: NWConnection) async throws {
+        try await withCheckedThrowingContinuation { continuation in
+            connection.send(content: data, completion: .contentProcessed { error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume()
+                }
+            })
         }
     }
 }

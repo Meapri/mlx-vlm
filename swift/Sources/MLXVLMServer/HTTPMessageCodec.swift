@@ -58,16 +58,24 @@ public enum HTTPMessageCodec {
         headers["content-length"] = "\(response.body.count)"
         headers["connection"] = headers["connection"] ?? "close"
 
-        var wire = "HTTP/1.1 \(response.statusCode) \(response.reasonPhrase)\r\n"
-        for key in headers.keys.sorted() {
-            if let value = headers[key] {
+        var data = serializeHeaders(statusCode: response.statusCode, reasonPhrase: response.reasonPhrase, headers: headers)
+        data.append(response.body)
+        return data
+    }
+
+    public static func serializeHeaders(statusCode: Int, reasonPhrase: String, headers: [String: String]) -> Data {
+        var normalizedHeaders = headers.reduce(into: [String: String]()) { result, pair in
+            result[pair.key.lowercased()] = pair.value
+        }
+        normalizedHeaders["connection"] = normalizedHeaders["connection"] ?? "close"
+
+        var wire = "HTTP/1.1 \(statusCode) \(reasonPhrase)\r\n"
+        for key in normalizedHeaders.keys.sorted() {
+            if let value = normalizedHeaders[key] {
                 wire += "\(key): \(value)\r\n"
             }
         }
         wire += "\r\n"
-
-        var data = Data(wire.utf8)
-        data.append(response.body)
-        return data
+        return Data(wire.utf8)
     }
 }
