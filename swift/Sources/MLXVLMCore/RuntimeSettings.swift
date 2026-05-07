@@ -60,15 +60,12 @@ public extension JSONEncoder {
     static var settings: JSONEncoder {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        encoder.keyEncodingStrategy = .convertToSnakeCase
         return encoder
     }
 }
 
 public extension JSONDecoder {
     static var settings: JSONDecoder {
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        return decoder
+        JSONDecoder()
     }
 }
