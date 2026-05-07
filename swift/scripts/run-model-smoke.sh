@@ -39,8 +39,12 @@ fi
 
 if [[ -n "${METALLIB}" ]]; then
   echo "METALLIB=${METALLIB}"
-  cp "${METALLIB}" "${BIN_DIR}/mlx.metallib"
-  cp "${METALLIB}" "${BIN_DIR}/default.metallib"
+  if [[ "$(cd "$(dirname "${METALLIB}")" && pwd)/$(basename "${METALLIB}")" != "$(cd "${BIN_DIR}" && pwd)/mlx.metallib" ]]; then
+    cp "${METALLIB}" "${BIN_DIR}/mlx.metallib"
+  fi
+  if [[ "$(cd "$(dirname "${METALLIB}")" && pwd)/$(basename "${METALLIB}")" != "$(cd "${BIN_DIR}" && pwd)/default.metallib" ]]; then
+    cp "${METALLIB}" "${BIN_DIR}/default.metallib"
+  fi
 else
   echo "warning: no metallib found or compiled" >&2
 fi
