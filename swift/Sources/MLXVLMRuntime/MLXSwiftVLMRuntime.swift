@@ -3,6 +3,8 @@ import MLXVLMCore
 import MLXVLM
 import MLXLMCommon
 import MLXHuggingFace
+import HuggingFace
+import Tokenizers
 
 /// Concrete `VLMRuntime` backed by Apple's MLX Swift VLM stack.
 ///

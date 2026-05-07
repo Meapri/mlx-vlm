@@ -13,7 +13,9 @@ public enum MLXSwiftRuntimeAvailability {
     public static let requiredProducts = [
         "MLXVLM",
         "MLXLMCommon",
-        "MLXHuggingFace"
+        "MLXHuggingFace",
+        "Tokenizers",
+        "HuggingFace"
     ]
 
     public static var status: String {
