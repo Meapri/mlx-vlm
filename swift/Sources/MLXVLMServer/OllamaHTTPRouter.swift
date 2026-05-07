@@ -20,11 +20,11 @@ public struct OllamaHTTPRouter: Sendable {
     public func handle(_ request: HTTPRequest) async throws -> HTTPResponse {
         switch (request.method, request.path) {
         case ("GET", "/api/version"):
-            return try HTTPResponse.json(OllamaVersionResponse(version: version))
+            return try HTTPResponse.json(OllamaVersionResponse(version: version), encoder: .ollama)
         case ("GET", "/api/tags"):
-            return try HTTPResponse.json(OllamaAdapter.tagsResponse(from: aliases.aliases, createdAt: OllamaRuntimeHandler.iso8601Now()))
+            return try HTTPResponse.json(OllamaAdapter.tagsResponse(from: aliases.aliases, createdAt: OllamaRuntimeHandler.iso8601Now()), encoder: .ollama)
         case ("GET", "/api/ps"):
-            return try HTTPResponse.json(OllamaRunningModelsResponse(models: []))
+            return try HTTPResponse.json(OllamaRunningModelsResponse(models: []), encoder: .ollama)
         case ("POST", "/api/generate"):
             return try await handleGenerate(request)
         case ("POST", "/api/chat"):
@@ -51,7 +51,7 @@ public struct OllamaHTTPRouter: Sendable {
             )
         }
 
-        return try await HTTPResponse.json(runtimeHandler.generate(request))
+        return try await HTTPResponse.json(runtimeHandler.generate(request), encoder: .ollama)
     }
 
     private func handleChat(_ httpRequest: HTTPRequest) async throws -> HTTPResponse {
@@ -69,7 +69,7 @@ public struct OllamaHTTPRouter: Sendable {
             )
         }
 
-        return try await HTTPResponse.json(runtimeHandler.chat(request))
+        return try await HTTPResponse.json(runtimeHandler.chat(request), encoder: .ollama)
     }
 
     private static let webUIHTML = """

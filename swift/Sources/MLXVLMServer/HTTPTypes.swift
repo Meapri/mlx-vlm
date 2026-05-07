@@ -31,7 +31,7 @@ public struct HTTPResponse: Equatable, Sendable {
         headers.first { $0.key.lowercased() == name.lowercased() }?.value
     }
 
-    public static func json<T: Encodable>(_ value: T, encoder: JSONEncoder = .ollama, statusCode: Int = 200) throws -> HTTPResponse {
+    public static func json<T: Encodable>(_ value: T, encoder: JSONEncoder, statusCode: Int = 200) throws -> HTTPResponse {
         try HTTPResponse(
             statusCode: statusCode,
             headers: ["content-type": "application/json"],
