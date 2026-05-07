@@ -1,4 +1,4 @@
-// swift-tools-version: 5.10
+// swift-tools-version: 6.1
 import PackageDescription
 
 let package = Package(
@@ -12,20 +12,29 @@ let package = Package(
         .library(name: "MLXVLMCompat", targets: ["MLXVLMCompat"]),
         .library(name: "MLXVLMOllama", targets: ["MLXVLMOllama"]),
         .library(name: "MLXVLMServer", targets: ["MLXVLMServer"]),
+        .library(name: "MLXVLMRuntime", targets: ["MLXVLMRuntime"]),
         .executable(name: "mlx-vlm-swift", targets: ["mlx-vlm-swift"])
     ],
     dependencies: [
-        // Runtime MLX dependencies will be enabled after baseline DTO/compat tests land.
-        // .package(url: "https://github.com/ml-explore/mlx-swift.git", branch: "main"),
-        // .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", branch: "main")
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", branch: "main")
     ],
     targets: [
         .target(name: "MLXVLMCore"),
         .target(name: "MLXVLMCompat", dependencies: ["MLXVLMCore"]),
         .target(name: "MLXVLMOllama", dependencies: ["MLXVLMCore", "MLXVLMCompat"]),
         .target(name: "MLXVLMServer", dependencies: ["MLXVLMCore", "MLXVLMCompat", "MLXVLMOllama"]),
+        .target(
+            name: "MLXVLMRuntime",
+            dependencies: [
+                "MLXVLMCore",
+                .product(name: "MLXVLM", package: "mlx-swift-lm"),
+                .product(name: "MLXLMCommon", package: "mlx-swift-lm"),
+                .product(name: "MLXHuggingFace", package: "mlx-swift-lm")
+            ]
+        ),
         .executableTarget(name: "mlx-vlm-swift", dependencies: ["MLXVLMCore", "MLXVLMCompat", "MLXVLMOllama", "MLXVLMServer"]),
         .testTarget(name: "MLXVLMCompatTests", dependencies: ["MLXVLMCore", "MLXVLMCompat"]),
-        .testTarget(name: "MLXVLMOllamaTests", dependencies: ["MLXVLMCore", "MLXVLMCompat", "MLXVLMOllama", "MLXVLMServer"])
+        .testTarget(name: "MLXVLMOllamaTests", dependencies: ["MLXVLMCore", "MLXVLMCompat", "MLXVLMOllama", "MLXVLMServer"]),
+        .testTarget(name: "MLXVLMRuntimeTests", dependencies: ["MLXVLMRuntime"])
     ]
 )
