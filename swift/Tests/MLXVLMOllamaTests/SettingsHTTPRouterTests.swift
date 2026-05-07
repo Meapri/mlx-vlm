@@ -41,7 +41,7 @@ final class SettingsHTTPRouterTests: XCTestCase {
     func testStatusRouteReportsServerAndConfigState() async throws {
         let directory = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(UUID().uuidString, isDirectory: true)
         let store = SettingsStore(configDirectory: directory)
-        let router = OllamaHTTPRouter(settingsStore: store, version: "test-version")
+        let router = OllamaHTTPRouter(version: "test-version", settingsStore: store)
 
         let response = try await router.handle(HTTPRequest(method: "GET", path: "/mlx-vlm/status", headers: [:], body: Data()))
 
