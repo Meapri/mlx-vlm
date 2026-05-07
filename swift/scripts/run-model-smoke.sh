@@ -13,8 +13,23 @@ cd "$(dirname "$0")/.."
 echo "MODEL=${MODEL}"
 echo "IMAGE=${IMAGE}"
 echo "PROMPT=${PROMPT}"
+echo "MLXVLM_SWIFT_DEVICE=${MLXVLM_SWIFT_DEVICE:-}"
 
-swift run mlx-vlm-swift generate \
+swift build --product mlx-vlm-swift
+
+BIN="$(swift build --show-bin-path)/mlx-vlm-swift"
+BIN_DIR="$(dirname "${BIN}")"
+
+METALLIB="$(find .build -name default.metallib -o -name mlx.metallib | head -n 1 || true)"
+if [[ -n "${METALLIB}" ]]; then
+  echo "METALLIB=${METALLIB}"
+  cp "${METALLIB}" "${BIN_DIR}/mlx.metallib"
+  cp "${METALLIB}" "${BIN_DIR}/default.metallib"
+else
+  echo "warning: no metallib found under .build" >&2
+fi
+
+"${BIN}" generate \
   --model "${MODEL}" \
   --image "${IMAGE}" \
   --prompt "${PROMPT}" \
