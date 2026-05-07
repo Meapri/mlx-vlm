@@ -19,9 +19,12 @@ public actor MLXSwiftVLMRuntime: VLMRuntime {
     public init() {}
 
     public func generate(_ request: RuntimeGenerateRequest) async throws -> RuntimeGenerateChunk {
-        try await Self.withConfiguredDevice {
-            try await generateOnConfiguredDevice(request)
+        if Self.requestedDevice() == "cpu" {
+            return try await Device.withDefaultDevice(.cpu) {
+                try await generateOnConfiguredDevice(request)
+            }
         }
+        return try await generateOnConfiguredDevice(request)
     }
 
     private func generateOnConfiguredDevice(_ request: RuntimeGenerateRequest) async throws -> RuntimeGenerateChunk {
@@ -51,30 +54,12 @@ public actor MLXSwiftVLMRuntime: VLMRuntime {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    try await Self.withConfiguredDevice {
-                        let (images, temporaryFiles) = try Self.decodeImages(request.base64Images)
-                        defer { Self.removeTemporaryFiles(temporaryFiles) }
-                        let container = try await self.container(for: request.modelSource)
-
-                        let session = ChatSession(
-                            container,
-                            generateParameters: MLXLMCommon.GenerateParameters(
-                                maxTokens: request.maxTokens,
-                                temperature: Float(request.temperature),
-                                topP: Float(request.topP)
-                            )
-                        )
-
-                        for try await chunk in session.streamResponse(
-                            to: request.prompt,
-                            images: images,
-                            videos: []
-                        ) {
-                            if Task.isCancelled { break }
-                            continuation.yield(RuntimeGenerateChunk(text: chunk, done: false))
+                    if Self.requestedDevice() == "cpu" {
+                        try await Device.withDefaultDevice(.cpu) {
+                            try await self.streamOnConfiguredDevice(request, continuation: continuation)
                         }
-                        continuation.yield(RuntimeGenerateChunk(text: "", done: true, finishReason: "stop"))
-                        continuation.finish()
+                    } else {
+                        try await self.streamOnConfiguredDevice(request, continuation: continuation)
                     }
                 } catch {
                     continuation.finish(throwing: error)
@@ -85,6 +70,35 @@ public actor MLXSwiftVLMRuntime: VLMRuntime {
                 task.cancel()
             }
         }
+    }
+
+    private func streamOnConfiguredDevice(
+        _ request: RuntimeGenerateRequest,
+        continuation: AsyncThrowingStream<RuntimeGenerateChunk, Error>.Continuation
+    ) async throws {
+        let (images, temporaryFiles) = try Self.decodeImages(request.base64Images)
+        defer { Self.removeTemporaryFiles(temporaryFiles) }
+        let container = try await self.container(for: request.modelSource)
+
+        let session = ChatSession(
+            container,
+            generateParameters: MLXLMCommon.GenerateParameters(
+                maxTokens: request.maxTokens,
+                temperature: Float(request.temperature),
+                topP: Float(request.topP)
+            )
+        )
+
+        for try await chunk in session.streamResponse(
+            to: request.prompt,
+            images: images,
+            videos: []
+        ) {
+            if Task.isCancelled { break }
+            continuation.yield(RuntimeGenerateChunk(text: chunk, done: false))
+        }
+        continuation.yield(RuntimeGenerateChunk(text: "", done: true, finishReason: "stop"))
+        continuation.finish()
     }
 
     private func container(for source: String) async throws -> ModelContainer {
@@ -110,14 +124,8 @@ public actor MLXSwiftVLMRuntime: VLMRuntime {
         return container
     }
 
-    private nonisolated static func withConfiguredDevice<R>(_ operation: () async throws -> R) async throws -> R {
-        let requestedDevice = ProcessInfo.processInfo.environment["MLXVLM_SWIFT_DEVICE"]?.lowercased()
-        if requestedDevice == "cpu" {
-            return try await Device.withDefaultDevice(.cpu) {
-                try await operation()
-            }
-        }
-        return try await operation()
+    private nonisolated static func requestedDevice() -> String? {
+        ProcessInfo.processInfo.environment["MLXVLM_SWIFT_DEVICE"]?.lowercased()
     }
 
     private nonisolated static func isLocalDirectory(_ source: String) -> Bool {
