@@ -115,7 +115,7 @@ match=next((m for m in models if m.get('model') == os.environ.get('MODEL') or m.
 assert match is not None, payload
 assert match.get('expires_at'), payload
 details=match.get('details') or {}
-assert details.get('family') in ('qwen2_vl', 'vlm'), payload
+assert details.get('family') in ('qwen2_vl', 'qwen2_5_vl', 'vlm'), payload
 print('\nollama_ps_models=', [m.get('model') for m in models])
 print('ollama_ps_expires_at=', match.get('expires_at'))
 print('ollama_ps_details=', details)
