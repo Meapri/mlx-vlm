@@ -1,0 +1,41 @@
+name: Swift model smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: HuggingFace/MLX model id or local path
+        required: true
+        default: mlx-community/SmolVLM-256M-Instruct-4bit
+      prompt:
+        description: Prompt for the smoke generation
+        required: true
+        default: Describe this image in one short sentence.
+      max_tokens:
+        description: Maximum generated tokens
+        required: true
+        default: "32"
+      timeout_minutes:
+        description: Job timeout in minutes
+        required: true
+        default: "30"
+
+jobs:
+  model-smoke:
+    runs-on: macos-14
+    timeout-minutes: ${{ fromJSON(inputs.timeout_minutes) }}
+    defaults:
+      run:
+        working-directory: swift
+    steps:
+      - uses: actions/checkout@v4
+      - name: Swift version
+        run: swift --version
+      - name: Run model smoke generation
+        env:
+          MODEL: ${{ inputs.model }}
+          PROMPT: ${{ inputs.prompt }}
+          MAX_TOKENS: ${{ inputs.max_tokens }}
+          TEMPERATURE: "0"
+          TOP_P: "1"
+        run: ./scripts/run-model-smoke.sh
