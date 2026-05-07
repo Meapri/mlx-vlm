@@ -110,7 +110,7 @@ public struct OllamaRuntimeHandler: Sendable {
         )
     }
 
-    private static func iso8601Now() -> String {
+    public static func iso8601Now() -> String {
         ISO8601DateFormatter().string(from: Date())
     }
 }
