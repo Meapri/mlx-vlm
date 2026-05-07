@@ -1,5 +1,4 @@
 import Foundation
-import MLXVLMCore
 
 public struct RuntimeBridge {
     public let aliases: ModelAliasStore
