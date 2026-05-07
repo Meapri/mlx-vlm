@@ -1,0 +1,41 @@
+name: Swift Ollama smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: HuggingFace/MLX model id or local path
+        required: true
+        default: mlx-community/Qwen2-VL-2B-Instruct-4bit
+      prompt:
+        description: Prompt for Ollama generate
+        required: true
+        default: Describe this image in one short sentence.
+      max_tokens:
+        description: Maximum generated tokens
+        required: true
+        default: "8"
+      timeout_minutes:
+        description: Job timeout in minutes
+        required: true
+        default: "30"
+
+jobs:
+  ollama-smoke:
+    runs-on: macos-15
+    timeout-minutes: ${{ fromJSON(inputs.timeout_minutes) }}
+    defaults:
+      run:
+        working-directory: swift
+    steps:
+      - uses: actions/checkout@v4
+      - name: Swift version
+        run: swift --version
+      - name: Run Ollama API smoke
+        env:
+          MODEL: ${{ inputs.model }}
+          PROMPT: ${{ inputs.prompt }}
+          MAX_TOKENS: ${{ inputs.max_tokens }}
+          HOST: 127.0.0.1
+          PORT: "11435"
+        run: ./scripts/run-ollama-smoke.sh
