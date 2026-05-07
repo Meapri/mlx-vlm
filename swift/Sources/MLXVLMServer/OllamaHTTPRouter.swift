@@ -214,7 +214,7 @@ public struct OllamaHTTPRouter: Sendable {
             default_top_p: Number($('defaultTopP').value || 1),
             keep_model_loaded: $('keepModelLoaded').checked,
             ollama_api_enabled: $('ollamaAPIEnabled').checked,
-            open_aiapi_enabled: $('openAIAPIEnabled').checked,
+            open_ai_api_enabled: $('openAIAPIEnabled').checked,
             aliases: JSON.parse($('aliases').value || '[]')
           };
         }
@@ -228,7 +228,7 @@ public struct OllamaHTTPRouter: Sendable {
           setValue('defaultTopP', settings.default_top_p);
           setValue('keepModelLoaded', settings.keep_model_loaded);
           setValue('ollamaAPIEnabled', settings.ollama_api_enabled);
-          setValue('openAIAPIEnabled', settings.open_aiapi_enabled);
+          setValue('openAIAPIEnabled', settings.open_ai_api_enabled);
           $('aliases').value = JSON.stringify(settings.aliases || [], null, 2);
         }
         async function load() {

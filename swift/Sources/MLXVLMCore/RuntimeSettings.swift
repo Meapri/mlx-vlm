@@ -13,6 +13,20 @@ public struct RuntimeSettings: Codable, Equatable, Sendable {
     public var openAIAPIEnabled: Bool
     public var aliases: [ModelAlias]
 
+    enum CodingKeys: String, CodingKey {
+        case host
+        case port
+        case defaultModel = "default_model"
+        case modelCacheDirectory = "model_cache_directory"
+        case defaultMaxTokens = "default_max_tokens"
+        case defaultTemperature = "default_temperature"
+        case defaultTopP = "default_top_p"
+        case keepModelLoaded = "keep_model_loaded"
+        case ollamaAPIEnabled = "ollama_api_enabled"
+        case openAIAPIEnabled = "open_ai_api_enabled"
+        case aliases
+    }
+
     public init(
         host: String = "127.0.0.1",
         port: Int = 11434,
