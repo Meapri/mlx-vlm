@@ -38,16 +38,17 @@ struct MLXVLMCompatCLI {
             throw CLIError.missingRequiredOption("--prompt")
         }
 
-        let aliases = ModelAliasStore()
+        let settings = try SettingsStore().loadOrCreateDefault()
+        let aliases = ModelAliasStore(aliases: settings.aliases)
         let runtime = MLXSwiftVLMRuntime()
         let bridge = RuntimeBridge(aliases: aliases, runtime: runtime)
         let request = bridge.makeRequest(
             model: model,
             prompt: prompt,
             base64Images: imageInputs(from: options),
-            maxTokens: options.intValue(for: "--max-tokens") ?? 128,
-            temperature: options.doubleValue(for: "--temperature") ?? 0.0,
-            topP: options.doubleValue(for: "--top-p") ?? 1.0
+            maxTokens: options.intValue(for: "--max-tokens") ?? settings.defaultMaxTokens,
+            temperature: options.doubleValue(for: "--temperature") ?? settings.defaultTemperature,
+            topP: options.doubleValue(for: "--top-p") ?? settings.defaultTopP
         )
 
         if options.hasFlag("--stream") {
@@ -66,12 +67,14 @@ struct MLXVLMCompatCLI {
 
     private static func runServe(_ arguments: [String]) throws -> Never {
         let options = CLIOptions(arguments)
-        let host = options.value(for: "--host") ?? ServerShell.defaultHost
-        let port = options.intValue(for: "--port") ?? ServerShell.defaultPort
-        let aliases = ModelAliasStore()
+        let settingsStore = SettingsStore()
+        let settings = try settingsStore.loadOrCreateDefault()
+        let host = options.value(for: "--host") ?? settings.host
+        let port = options.intValue(for: "--port") ?? settings.port
+        let aliases = ModelAliasStore(aliases: settings.aliases)
         let runtime = MLXSwiftVLMRuntime()
         let handler = OllamaRuntimeHandler(runtime: runtime, aliases: aliases)
-        let router = OllamaHTTPRouter(runtimeHandler: handler, aliases: aliases)
+        let router = OllamaHTTPRouter(runtimeHandler: handler, aliases: aliases, settingsStore: settingsStore)
         let server = OllamaNetworkServer(host: host, port: port, router: router)
 
         print("MLX-VLM Swift Ollama-compatible server listening on http://\(host):\(port)")

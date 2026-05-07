@@ -6,15 +6,18 @@ public struct OllamaHTTPRouter: Sendable {
     private let runtimeHandler: OllamaRuntimeHandler
     private let aliases: ModelAliasStore
     private let version: String
+    private let settingsStore: SettingsStore
 
     public init(
         runtimeHandler: OllamaRuntimeHandler = OllamaRuntimeHandler(runtime: UnimplementedVLMRuntime()),
         aliases: ModelAliasStore = ModelAliasStore(),
-        version: String = "mlx-vlm-swift-compat"
+        version: String = "mlx-vlm-swift-compat",
+        settingsStore: SettingsStore = SettingsStore()
     ) {
         self.runtimeHandler = runtimeHandler
         self.aliases = aliases
         self.version = version
+        self.settingsStore = settingsStore
     }
 
     public func handle(_ request: HTTPRequest) async throws -> HTTPResponse {
@@ -32,7 +35,13 @@ public struct OllamaHTTPRouter: Sendable {
         case ("POST", "/api/chat"):
             return try await handleChat(request)
         case ("GET", "/"):
-            return HTTPResponse.text(Self.webUIHTML, contentType: "text/html; charset=utf-8")
+            return HTTPResponse.text(Self.settingsUIHTML, contentType: "text/html; charset=utf-8")
+        case ("GET", "/mlx-vlm/settings"):
+            return try handleGetSettings()
+        case ("PUT", "/mlx-vlm/settings"), ("POST", "/mlx-vlm/settings"):
+            return try handleSaveSettings(request)
+        case ("GET", "/mlx-vlm/status"):
+            return try handleStatus()
         default:
             return HTTPResponse.notFound()
         }
@@ -93,119 +102,154 @@ public struct OllamaHTTPRouter: Sendable {
         return try HTTPResponse.json(fallback, encoder: .ollama)
     }
 
-    private static let webUIHTML = """
+    private func handleGetSettings() throws -> HTTPResponse {
+        try HTTPResponse.json(settingsStore.loadOrCreateDefault(), encoder: .settings)
+    }
+
+    private func handleSaveSettings(_ httpRequest: HTTPRequest) throws -> HTTPResponse {
+        let settings = try JSONDecoder.settings.decode(RuntimeSettings.self, from: httpRequest.body)
+        try settingsStore.save(settings)
+        return try HTTPResponse.json(settings, encoder: .settings)
+    }
+
+    private func handleStatus() throws -> HTTPResponse {
+        let settings = try settingsStore.loadOrCreateDefault()
+        return try HTTPResponse.json(
+            RuntimeStatus(
+                version: version,
+                configPath: settingsStore.configURL.path,
+                serverRunning: true,
+                ollamaAPIEnabled: settings.ollamaAPIEnabled,
+                openAIAPIEnabled: settings.openAIAPIEnabled,
+                loadedModels: []
+            ),
+            encoder: .settings
+        )
+    }
+
+    private static let settingsUIHTML = """
     <!doctype html>
     <html lang="ko">
     <head>
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1">
-      <title>MLX-VLM Swift</title>
+      <title>MLX-VLM Swift Settings</title>
       <style>
         :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #080a0f; color: #f7f7fb; }
         * { box-sizing: border-box; }
-        body { margin: 0; min-height: 100vh; background: radial-gradient(circle at top left, #1c2a4a, transparent 36rem), #080a0f; }
-        main { width: min(980px, calc(100vw - 32px)); margin: 0 auto; padding: 48px 0; }
-        .hero { margin-bottom: 24px; }
-        h1 { margin: 0 0 8px; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -0.05em; }
+        body { margin: 0; min-height: 100vh; background: radial-gradient(circle at top left, #21345f, transparent 34rem), #080a0f; }
+        main { width: min(1040px, calc(100vw - 32px)); margin: 0 auto; padding: 42px 0; }
+        h1 { margin: 0 0 8px; font-size: clamp(2rem, 5vw, 3.8rem); letter-spacing: -0.05em; }
         p { color: #aab3c5; line-height: 1.6; }
+        .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
         .panel { background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.12); border-radius: 24px; padding: 20px; box-shadow: 0 24px 80px rgba(0,0,0,.35); }
         label { display: block; color: #d7def0; font-weight: 700; margin: 14px 0 8px; }
-        input, textarea, select, button { width: 100%; border: 1px solid rgba(255,255,255,.14); border-radius: 14px; background: rgba(0,0,0,.35); color: #f7f7fb; padding: 12px 14px; font: inherit; }
-        textarea { min-height: 140px; resize: vertical; }
+        input, textarea, button { width: 100%; border: 1px solid rgba(255,255,255,.14); border-radius: 14px; background: rgba(0,0,0,.35); color: #f7f7fb; padding: 12px 14px; font: inherit; }
+        input[type="checkbox"] { width: auto; margin-right: 8px; }
+        textarea { min-height: 160px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
         button { margin-top: 16px; border: 0; background: linear-gradient(135deg, #6ea8ff, #a78bfa); color: #07111f; font-weight: 800; cursor: pointer; }
-        button:disabled { opacity: .55; cursor: wait; }
-        .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-        .output { white-space: pre-wrap; min-height: 160px; margin-top: 16px; padding: 16px; border-radius: 16px; background: rgba(0,0,0,.42); border: 1px solid rgba(255,255,255,.1); }
         .muted { color: #8792a8; font-size: .92rem; }
-        @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
+        .status { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 18px 0; }
+        .pill { padding: 12px; border-radius: 16px; background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.1); }
+        .pill strong { display: block; margin-bottom: 4px; }
+        @media (max-width: 820px) { .grid, .status { grid-template-columns: 1fr; } }
       </style>
     </head>
     <body>
       <main>
-        <section class="hero">
-          <h1>MLX-VLM Swift</h1>
-          <p>기존 MLX/HuggingFace 모델을 그대로 쓰는 Swift VLM runtime + Ollama-compatible local UI.</p>
+        <h1>MLX-VLM Swift Settings</h1>
+        <p>런타임, 서버, 모델 alias, 기본 generation 값을 관리하는 로컬 설정 UI야. 설정은 <code>/mlx-vlm/settings</code>에 저장돼.</p>
+        <section class="status">
+          <div class="pill"><strong>Server</strong><span id="serverState">loading</span></div>
+          <div class="pill"><strong>Config</strong><span id="configPath">loading</span></div>
+          <div class="pill"><strong>Version</strong><span id="version">loading</span></div>
         </section>
-        <section class="panel">
-          <label for="model">Model</label>
-          <select id="model"></select>
-          <p class="muted">모델 목록은 <code>/api/tags</code>에서 불러오고, 요청은 <code>/api/generate</code>로 전송돼.</p>
-
-          <label for="prompt">Prompt</label>
-          <textarea id="prompt">Describe this image or answer the question.</textarea>
-
-          <label for="image">Image optional</label>
-          <input id="image" type="file" accept="image/*">
-
-          <div class="grid">
-            <div><label for="maxTokens">Max tokens</label><input id="maxTokens" type="number" value="128" min="1"></div>
-            <div><label for="temperature">Temperature</label><input id="temperature" type="number" value="0" step="0.1"></div>
-            <div><label for="topP">Top P</label><input id="topP" type="number" value="1" step="0.05"></div>
+        <section class="grid">
+          <div class="panel">
+            <h2>Server</h2>
+            <label for="host">Host</label>
+            <input id="host" value="127.0.0.1">
+            <label for="port">Port</label>
+            <input id="port" type="number" value="11434">
+            <label><input id="ollamaAPIEnabled" type="checkbox"> Ollama API enabled</label>
+            <label><input id="openAIAPIEnabled" type="checkbox"> OpenAI API enabled</label>
           </div>
-
-          <button id="run">Generate</button>
-          <div id="output" class="output">Ready.</div>
+          <div class="panel">
+            <h2>Runtime defaults</h2>
+            <label for="defaultModel">Default model</label>
+            <input id="defaultModel" placeholder="qwen2.5-vl:3b or mlx-community/...">
+            <label for="modelCacheDirectory">Model cache directory</label>
+            <input id="modelCacheDirectory" placeholder="optional">
+            <label><input id="keepModelLoaded" type="checkbox"> Keep model loaded</label>
+          </div>
+          <div class="panel">
+            <h2>Generation</h2>
+            <label for="defaultMaxTokens">Max tokens</label>
+            <input id="defaultMaxTokens" type="number" value="128">
+            <label for="defaultTemperature">Temperature</label>
+            <input id="defaultTemperature" type="number" step="0.1" value="0">
+            <label for="defaultTopP">Top P</label>
+            <input id="defaultTopP" type="number" step="0.05" value="1">
+          </div>
+          <div class="panel">
+            <h2>Model aliases</h2>
+            <p class="muted">JSON 배열 형식. 기존 MLX/HF source는 변환하지 않고 alias만 추가해.</p>
+            <textarea id="aliases"></textarea>
+          </div>
         </section>
+        <button id="save">Save settings</button>
+        <p id="message" class="muted">Ready.</p>
       </main>
       <script>
         const $ = (id) => document.getElementById(id);
-        async function fileToBase64(file) {
-          if (!file) return null;
-          const dataUrl = await new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result);
-            reader.onerror = reject;
-            reader.readAsDataURL(file);
-          });
-          return String(dataUrl).split(',')[1];
+        function setValue(id, value) { const el = $(id); if (el.type === 'checkbox') el.checked = Boolean(value); else el.value = value ?? ''; }
+        function readSettings() {
+          return {
+            host: $('host').value,
+            port: Number($('port').value || 11434),
+            default_model: $('defaultModel').value || null,
+            model_cache_directory: $('modelCacheDirectory').value || null,
+            default_max_tokens: Number($('defaultMaxTokens').value || 128),
+            default_temperature: Number($('defaultTemperature').value || 0),
+            default_top_p: Number($('defaultTopP').value || 1),
+            keep_model_loaded: $('keepModelLoaded').checked,
+            ollama_api_enabled: $('ollamaAPIEnabled').checked,
+            open_ai_api_enabled: $('openAIAPIEnabled').checked,
+            aliases: JSON.parse($('aliases').value || '[]')
+          };
         }
-        async function loadModels() {
-          const res = await fetch('/api/tags');
-          const data = await res.json();
-          const select = $('model');
-          select.innerHTML = '';
-          for (const model of data.models || []) {
-            const option = document.createElement('option');
-            option.value = model.name;
-            option.textContent = model.name;
-            select.appendChild(option);
-          }
-          if (!select.children.length) {
-            const option = document.createElement('option');
-            option.value = 'mlx-community/Qwen2.5-VL-3B-Instruct-4bit';
-            option.textContent = option.value;
-            select.appendChild(option);
-          }
+        function applySettings(settings) {
+          setValue('host', settings.host);
+          setValue('port', settings.port);
+          setValue('defaultModel', settings.default_model);
+          setValue('modelCacheDirectory', settings.model_cache_directory);
+          setValue('defaultMaxTokens', settings.default_max_tokens);
+          setValue('defaultTemperature', settings.default_temperature);
+          setValue('defaultTopP', settings.default_top_p);
+          setValue('keepModelLoaded', settings.keep_model_loaded);
+          setValue('ollamaAPIEnabled', settings.ollama_api_enabled);
+          setValue('openAIAPIEnabled', settings.open_ai_api_enabled);
+          $('aliases').value = JSON.stringify(settings.aliases || [], null, 2);
         }
-        async function runGenerate() {
-          $('run').disabled = true;
-          $('output').textContent = 'Running...';
-          try {
-            const image = await fileToBase64($('image').files[0]);
-            const body = {
-              model: $('model').value,
-              prompt: $('prompt').value,
-              stream: false,
-              options: {
-                num_predict: Number($('maxTokens').value || 128),
-                temperature: Number($('temperature').value || 0),
-                top_p: Number($('topP').value || 1)
-              }
-            };
-            if (image) body.images = [image];
-            const res = await fetch('/api/generate', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
-            const text = await res.text();
-            if (!res.ok) throw new Error(text);
-            const data = JSON.parse(text);
-            $('output').textContent = data.response || '';
-          } catch (error) {
-            $('output').textContent = 'Error: ' + error.message;
-          } finally {
-            $('run').disabled = false;
-          }
+        async function load() {
+          const [settingsRes, statusRes] = await Promise.all([fetch('/mlx-vlm/settings'), fetch('/mlx-vlm/status')]);
+          const settings = await settingsRes.json();
+          const status = await statusRes.json();
+          applySettings(settings);
+          $('serverState').textContent = status.server_running ? 'running' : 'stopped';
+          $('configPath').textContent = status.config_path;
+          $('version').textContent = status.version;
         }
-        $('run').addEventListener('click', runGenerate);
-        loadModels().catch((error) => { $('output').textContent = 'Failed to load /api/tags: ' + error.message; });
+        async function save() {
+          $('message').textContent = 'Saving...';
+          const res = await fetch('/mlx-vlm/settings', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(readSettings()) });
+          const text = await res.text();
+          if (!res.ok) throw new Error(text);
+          applySettings(JSON.parse(text));
+          $('message').textContent = 'Saved. Restart server to apply host/port changes.';
+        }
+        $('save').addEventListener('click', () => save().catch((error) => { $('message').textContent = 'Error: ' + error.message; }));
+        load().catch((error) => { $('message').textContent = 'Failed to load /mlx-vlm/settings: ' + error.message; });
       </script>
     </body>
     </html>
