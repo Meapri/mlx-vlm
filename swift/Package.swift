@@ -17,6 +17,7 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/Meapri/mlx-swift-lm.git", branch: "fix/ci-context-sendable"),
+        .package(url: "https://github.com/ml-explore/mlx-swift", .upToNextMinor(from: "0.31.3")),
         .package(url: "https://github.com/huggingface/swift-transformers.git", branch: "main"),
         .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.8.1")
     ],
@@ -29,6 +30,7 @@ let package = Package(
             name: "MLXVLMRuntime",
             dependencies: [
                 "MLXVLMCore",
+                .product(name: "MLX", package: "mlx-swift"),
                 .product(name: "MLXVLM", package: "mlx-swift-lm"),
                 .product(name: "MLXLMCommon", package: "mlx-swift-lm"),
                 .product(name: "MLXHuggingFace", package: "mlx-swift-lm"),
