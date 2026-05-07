@@ -89,6 +89,35 @@ final class OllamaHTTPRouterTests: XCTestCase {
         XCTAssertEqual(decoded.message.content, "echo:local:user: Hi:0")
     }
 
+    func testShowRouteReturnsModelMetadataForAlias() async throws {
+        let aliases = ModelAliasStore(aliases: [
+            ModelAlias(name: "qwen2.5-vl:3b", source: "mlx-community/Qwen2.5-VL-3B-Instruct-4bit", modelType: "qwen2_5_vl")
+        ])
+        let router = OllamaHTTPRouter(aliases: aliases)
+        let body = try JSONEncoder.ollama.encode(OllamaShowRequest(model: "qwen2.5-vl:3b"))
+
+        let response = try await router.handle(HTTPRequest(method: "POST", path: "/api/show", headers: [:], body: body))
+
+        XCTAssertEqual(response.statusCode, 200)
+        let decoded = try JSONDecoder.ollama.decode(OllamaModelTag.self, from: response.body)
+        XCTAssertEqual(decoded.name, "qwen2.5-vl:3b")
+        XCTAssertEqual(decoded.digest, "mlx-community/Qwen2.5-VL-3B-Instruct-4bit")
+        XCTAssertEqual(decoded.details.family, "qwen2_5_vl")
+    }
+
+    func testRootRouteServesInteractiveWebUI() async throws {
+        let router = OllamaHTTPRouter()
+
+        let response = try await router.handle(HTTPRequest(method: "GET", path: "/", headers: [:], body: Data()))
+
+        XCTAssertEqual(response.statusCode, 200)
+        XCTAssertEqual(response.headerValue("content-type"), "text/html; charset=utf-8")
+        let html = String(decoding: response.body, as: UTF8.self)
+        XCTAssertTrue(html.contains("/api/tags"))
+        XCTAssertTrue(html.contains("/api/generate"))
+        XCTAssertTrue(html.contains("MLX-VLM Swift"))
+    }
+
     func testUnknownRouteReturns404() async throws {
         let router = OllamaHTTPRouter()
         let response = try await router.handle(HTTPRequest(method: "GET", path: "/missing", headers: [:], body: Data()))
