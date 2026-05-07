@@ -16,7 +16,7 @@ let package = Package(
         .executable(name: "mlx-vlm-swift", targets: ["mlx-vlm-swift"])
     ],
     dependencies: [
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", branch: "main")
+        .package(url: "https://github.com/Meapri/mlx-swift-lm.git", branch: "fix/ci-context-sendable")
     ],
     targets: [
         .target(name: "MLXVLMCore"),
