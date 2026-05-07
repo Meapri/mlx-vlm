@@ -226,6 +226,100 @@ print('\nollama_chat_stream_chunks=', len(payloads))
 print('ollama_chat_stream_response=', text)
 PY
 
+curl -fsS "${BASE_URL}/v1/models" | tee /tmp/mlx-vlm-openai-models.json
+python3 - <<'PY'
+import json, os
+payload=json.load(open('/tmp/mlx-vlm-openai-models.json'))
+models=payload.get('data') or []
+assert payload.get('object') == 'list', payload
+# Aliases may be empty for arbitrary HF ids, but the OpenAI route must return a valid list.
+assert isinstance(models, list), payload
+print('\nopenai_models_count=', len(models))
+PY
+
+python3 - <<'PY' > /tmp/mlx-vlm-openai-chat.json
+import base64, json, os
+with open(os.environ.get('IMAGE', 'Tests/Fixtures/smoke-image.png'), 'rb') as f:
+    image = base64.b64encode(f.read()).decode()
+print(json.dumps({
+    'model': os.environ.get('MODEL', 'mlx-community/Qwen2-VL-2B-Instruct-4bit'),
+    'messages': [{
+        'role': 'user',
+        'content': [
+            {'type': 'text', 'text': os.environ.get('PROMPT', 'Describe this image in one short sentence.')},
+            {'type': 'image_url', 'image_url': {'url': 'data:image/png;base64,' + image}},
+        ],
+    }],
+    'stream': False,
+    'max_tokens': int(os.environ.get('MAX_TOKENS', '8')),
+    'temperature': 0,
+    'top_p': 1,
+}))
+PY
+
+curl -fsS --max-time 180 \
+  -H 'Content-Type: application/json' \
+  -d @/tmp/mlx-vlm-openai-chat.json \
+  "${BASE_URL}/v1/chat/completions" | tee /tmp/mlx-vlm-openai-chat-response.json
+python3 - <<'PY'
+import json
+payload=json.load(open('/tmp/mlx-vlm-openai-chat-response.json'))
+assert payload.get('object') == 'chat.completion', payload
+choices=payload.get('choices') or []
+assert choices, payload
+message=choices[0].get('message') or {}
+assert message.get('role') == 'assistant', payload
+assert message.get('content'), payload
+print('\nopenai_chat_response=', message['content'])
+PY
+
+python3 - <<'PY' > /tmp/mlx-vlm-openai-chat-stream.json
+import base64, json, os
+with open(os.environ.get('IMAGE', 'Tests/Fixtures/smoke-image.png'), 'rb') as f:
+    image = base64.b64encode(f.read()).decode()
+print(json.dumps({
+    'model': os.environ.get('MODEL', 'mlx-community/Qwen2-VL-2B-Instruct-4bit'),
+    'messages': [{
+        'role': 'user',
+        'content': [
+            {'type': 'text', 'text': os.environ.get('PROMPT', 'Describe this image in one short sentence.')},
+            {'type': 'image_url', 'image_url': {'url': 'data:image/png;base64,' + image}},
+        ],
+    }],
+    'stream': True,
+    'max_tokens': int(os.environ.get('MAX_TOKENS', '8')),
+    'temperature': 0,
+    'top_p': 1,
+}))
+PY
+
+curl -fsS --max-time 180 \
+  -H 'Content-Type: application/json' \
+  -d @/tmp/mlx-vlm-openai-chat-stream.json \
+  "${BASE_URL}/v1/chat/completions" | tee /tmp/mlx-vlm-openai-chat-stream-response.sse
+python3 - <<'PY'
+import json
+raw=open('/tmp/mlx-vlm-openai-chat-stream-response.sse').read()
+events=[]
+for block in raw.split('\n\n'):
+    block=block.strip()
+    if not block:
+        continue
+    assert block.startswith('data: '), block
+    data=block[len('data: '):]
+    if data == '[DONE]':
+        done=True
+        continue
+    events.append(json.loads(data))
+assert events, raw
+done = '[DONE]' in raw
+assert done, raw
+text=''.join(((e.get('choices') or [{}])[0].get('delta') or {}).get('content') or '' for e in events)
+assert text, events
+print('\nopenai_chat_stream_chunks=', len(events))
+print('openai_chat_stream_response=', text)
+PY
+
 python3 - <<'PY' > /tmp/mlx-vlm-ollama-unload.json
 import json, os
 print(json.dumps({
